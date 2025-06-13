@@ -133,7 +133,7 @@ inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K)*((lambda_output(i)+1).^2*inv(Sa)+
 The averaging kernel matrix $\mathbf{A}$ relates the retrieval $\hat{\mathbf{x}}$ to the true state $\mathbf{x}_{t}$:
 
 $$
-\hat{\mathbf{x}} - \mathbf{x}_a = \mathbf{A} (\mathbf{x}_{t} - \mathbf{x}_a) + \mathbf{G} \varepsilon
+\hat{\mathbf{x}} - \mathbf{x}_{a} = \mathbf{A} (\mathbf{x}_{t} - \mathbf{x}_a) + \mathbf{G} \varepsilon
 $$
 
 where $\mathbf{G}$ is the gain matrix. For a linear problem:
@@ -148,7 +148,7 @@ $$
 \mathbf{A} = \mathbf{G K}, \quad \mathbf{G} = (\mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1})^{-1} \mathbf{K}^T \mathbf{S}_e^{-1}
 $$
 
-This matches the MATLAB code::
+This matches the MATLAB code:
 
 ```matlab
 A = gather(inv(K'*inv(Se)*K+(lambda_output(i)+1).*inv(Sa)))*gather(K'*inv(Se)*K);
