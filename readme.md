@@ -101,8 +101,8 @@ x(:, i+1) = gather(x(:,i) + inv((1+lambda)*inv(Sa) + K'*inv(Se)*K)*(K'*inv(Se)*(
 ```
 
 The damping parameter $\lambda_i$ controls the step:
-- If $$J(\mathbf{x}_{i+1})$$ < $$J(\mathbf{x}_{i})$$, accept the step and decrease $$\lambda_i$$ (e.g., $$\lambda_{i+1} = \lambda_i / 10$$).
-- If $$J(\mathbf{x}_{i+1}) \ge J(\mathbf{x}_i)$$, reject the step, revert to $$\mathbf{x}_i$$, and increase $$\lambda_i$$ (e.g., $$\lambda_{i+1} = \lambda_i \times 10$$).
+- If $$J(\mathbf{x}_{i+1})$$ < $$J(\mathbf{x}_i)$$, accept the step and decrease $$\lambda_i$$ (e.g., $$\lambda_{i+1} = \lambda_i / 10$$).
+- If $$J(\mathbf{x}_{i+1}) \ge J(\mathbf{x}_i)$$, reject the step, revert to $$x_i$$, and increase $$\lambda_i$$ (e.g., $$\lambda_{i+1} = \lambda_i \times 10$$).
 
 Iteration continues until convergence, e.g., when the change in the state vector satisfies a threshold.
 
