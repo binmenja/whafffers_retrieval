@@ -102,7 +102,7 @@ x(:, i+1) = gather(x(:,i) + inv((1+lambda)*inv(Sa) + K'*inv(Se)*K)*(K'*inv(Se)*(
 
 The damping parameter $\lambda_i$ controls the step:
 - If $J(\mathbf{x}_{i+1})$ < $J(\mathbf{x}_i)$, accept the step and decrease $\lambda_i$ (e.g., $\lambda_{i+1} = \lambda_i / 10$).
-- If $J(\mathbf{x}_{i+1}) \ge J(\mathbf{x}_i)$, reject the step, revert to $\mathbf{x}_i$, and increase $\lambda_i$$ (e.g., $\lambda_{i+1} = \lambda_i \times 10$).
+- If $J(\mathbf{x}_{i+1}) \ge J(\mathbf{x}_i)$, reject the step, revert to $\mathbf{x}_i$, and increase $\lambda_i$ (e.g., $\lambda_{i+1} = \lambda_i \times 10$).
 
 Iteration continues until convergence, e.g., when the change in the state vector satisfies a threshold.
 
@@ -110,7 +110,7 @@ Iteration continues until convergence, e.g., when the change in the state vector
 
 ### Posterior Covariance Matrix
 
-The posterior covariance matrix $\hat{\mathbf{S}}$ describes the uncertainty of the retrieved state $$\hat{\mathbf{x}}$$:
+The posterior covariance matrix $\hat{\mathbf{S}}$ describes the uncertainty of the retrieved state $\hat{\mathbf{x}}$:
 
 $$
 \hat{\mathbf{S}} = (\mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1})^{-1}
@@ -130,7 +130,7 @@ inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K)*((lambda_output(i)+1).^2*inv(Sa)+
 
 ### Averaging Kernel Matrix
 
-The averaging kernel matrix $$\mathbf{A}$$ relates the retrieval $$\hat{\mathbf{x}}$$ to the true state $$\mathbf{x}_{t}$$:
+The averaging kernel matrix $\mathbf{A}$ relates the retrieval $\hat{\mathbf{x}}$ to the true state $\mathbf{x}_{t}$:
 
 $$
 \hat{\mathbf{x}} - \mathbf{x}_a = \mathbf{A} (\mathbf{x}_{t} - \mathbf{x}_a) + \mathbf{G} \epsilon
