@@ -25,10 +25,10 @@ $$
 \mathbf{y} = F(\mathbf{x}) + \varepsilon
 $$
 
-where $\varepsilon$ represents measurement noise and forward model errors, assumed to follow a Gaussian distribution with zero mean and a known measurement error covariance matrix $\mathbf{S}_e$:
+where $\varepsilon$ represents measurement noise and forward model errors, assumed to follow a Gaussian distribution with zero mean and a known measurement error covariance matrix $\mathbf{S}_{e}$:
 
 $$
-\varepsilon \sim \mathcal{N}(\mathbf{0}, \mathbf{S}_e)
+\varepsilon \sim \mathcal{N}(\mathbf{0}, \mathbf{S}_{e})
 $$
 
 ## Bayesian Formulation and Cost Function
@@ -44,28 +44,28 @@ where:
 - $P(\mathbf{x})$ is the *a priori* PDF of the state $\mathbf{x}$.
 - $P(\mathbf{y})$ is the normalization constant.
 
-Assuming the *a priori* state $\mathbf{x}_a$ is known with covariance matrix $\mathbf{S}_a$:
+Assuming the *a priori* state $\mathbf{x}_{a}$ is known with covariance matrix $\mathbf{S}_{a}$:
 
 $$
-\mathbf{x} \sim \mathcal{N}(\mathbf{x}_a, \mathbf{S}_a)
+\mathbf{x} \sim \mathcal{N}(\mathbf{x}_{a}, \mathbf{S}_{a})
 $$
 
 The *a priori* term is:
 
 $$
-P(\mathbf{x}) \propto \exp\left(-\frac{1}{2}(\mathbf{x} - \mathbf{x}_a)^T \mathbf{S}_a^{-1} (\mathbf{x} - \mathbf{x}_a)\right)
+P(\mathbf{x}) \propto \exp\left(-\frac{1}{2}(\mathbf{x} - \mathbf{x}_{a})^T \mathbf{S}_{a}^{-1} (\mathbf{x} - \mathbf{x}_{a})\right)
 $$
 
 The likelihood term is:
 
 $$
-P(\mathbf{y}|\mathbf{x}) \propto \exp\left(-\frac{1}{2}(\mathbf{y} - F(\mathbf{x}))^T \mathbf{S}_e^{-1} (\mathbf{y} - F(\mathbf{x}))\right)
+P(\mathbf{y}|\mathbf{x}) \propto \exp\left(-\frac{1}{2}(\mathbf{y} - F(\mathbf{x}))^T \mathbf{S}_{e}^{-1} (\mathbf{y} - F(\mathbf{x}))\right)
 $$
 
 Maximizing the posterior PDF $P(\mathbf{x}|\mathbf{y})$ is equivalent to minimizing the cost function $J(\mathbf{x})$:
 
 $$
-J(\mathbf{x}) = \frac{1}{2} (\mathbf{y} - F(\mathbf{x}))^T \mathbf{S}_e^{-1} (\mathbf{y} - F(\mathbf{x})) + \frac{1}{2} (\mathbf{x} - \mathbf{x}_a)^T \mathbf{S}_a^{-1} (\mathbf{x} - \mathbf{x}_a)
+J(\mathbf{x}) = \frac{1}{2} (\mathbf{y} - F(\mathbf{x}))^T \mathbf{S}_{e}^{-1} (\mathbf{y} - F(\mathbf{x})) + \frac{1}{2} (\mathbf{x} - \mathbf{x}_{a})^T \mathbf{S}_{a}^{-1} (\mathbf{x} - \mathbf{x}_{a})
 $$
 
 ## Iterative Solution: Levenberg-Marquardt Algorithm
@@ -85,13 +85,13 @@ $$
 The iterative update equation is:
 
 $$
-\mathbf{x}_{i+1} = \mathbf{x}_i + (\mathbf{K}_i^T \mathbf{S}_e^{-1} \mathbf{K}_i + (1 + \lambda_i)\mathbf{S}_a^{-1})^{-1} \left[ \mathbf{K}_i^T \mathbf{S}_e^{-1} (\mathbf{y} - F(\mathbf{x}_i)) - \mathbf{S}_a^{-1} (\mathbf{x}_i - \mathbf{x}_a) \right]
+\mathbf{x}_{i+1} = \mathbf{x}_i + (\mathbf{K}_i^T \mathbf{S}_{e}^{-1} \mathbf{K}_i + (1 + \lambda_i)\mathbf{S}_{a}^{-1})^{-1} \left[ \mathbf{K}_i^T \mathbf{S}_{e}^{-1} (\mathbf{y} - F(\mathbf{x}_i)) - \mathbf{S}_{a}^{-1} (\mathbf{x}_i - \mathbf{x}_{a}) \right]
 $$
 
 Alternatively:
 
 $$
-\mathbf{x}_{i+1} = \mathbf{x}_i + (\mathbf{K}_i^T \mathbf{S}_e^{-1} \mathbf{K}_i + \mathbf{S}_a^{-1} + \lambda_i \mathbf{S}_a^{-1})^{-1} \left[ \mathbf{K}_i^T \mathbf{S}_e^{-1} (\mathbf{y} - F(\mathbf{x}_i)) - \mathbf{S}_a^{-1} (\mathbf{x}_i - \mathbf{x}_a) \right]
+\mathbf{x}_{i+1} = \mathbf{x}_i + (\mathbf{K}_i^T \mathbf{S}_{e}^{-1} \mathbf{K}_i + \mathbf{S}_{a}^{-1} + \lambda_i \mathbf{S}_{a}^{-1})^{-1} \left[ \mathbf{K}_i^T \mathbf{S}_{e}^{-1} (\mathbf{y} - F(\mathbf{x}_i)) - \mathbf{S}_{a}^{-1} (\mathbf{x}_i - \mathbf{x}_{a}) \right]
 $$
 
 This matches the MATLAB code:
@@ -101,7 +101,7 @@ x(:, i+1) = gather(x(:,i) + inv((1+lambda)*inv(Sa) + K'*inv(Se)*K)*(K'*inv(Se)*(
 ```
 
 The damping parameter $\lambda_i$ controls the step:
-- If $$J(\mathbf{x}_{i+1})$$ < $$J(\mathbf{x}_i)$$, accept the step and decrease $$\lambda_i$$ (e.g., $$\lambda_{i+1} = \lambda_i / 10$$).
+- If $$J(\mathbf{x}_{i+1})$$ < $$J(\mathbf{x}_{i})$$, accept the step and decrease $$\lambda_i$$ (e.g., $$\lambda_{i+1} = \lambda_i / 10$$).
 - If $$J(\mathbf{x}_{i+1}) \ge J(\mathbf{x}_i)$$, reject the step, revert to $$\mathbf{x}_i$$, and increase $$\lambda_i$$ (e.g., $$\lambda_{i+1} = \lambda_i \times 10$$).
 
 Iteration continues until convergence, e.g., when the change in the state vector satisfies a threshold.
@@ -113,13 +113,13 @@ Iteration continues until convergence, e.g., when the change in the state vector
 The posterior covariance matrix $\hat{\mathbf{S}}$ describes the uncertainty of the retrieved state $$\hat{\mathbf{x}}$$:
 
 $$
-\hat{\mathbf{S}} = (\mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1})^{-1}
+\hat{\mathbf{S}} = (\mathbf{K}^T \mathbf{S}_{e}^{-1} \mathbf{K} + \mathbf{S}_{a}^{-1})^{-1}
 $$
 
 For Levenberg-Marquardt, accounting for $\lambda$:
 
 $$
-\mathbf{S}_{pos} = (\lambda \mathbf{S}_a^{-1} + \mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1})^{-1} (\lambda^2 \mathbf{S}_a^{-1} + \mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1}) (\lambda \mathbf{S}_a^{-1} + \mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1})^{-1}
+\mathbf{S}_{pos} = (\lambda \mathbf{S}_{a}^{-1} + \mathbf{K}^T \mathbf{S}_{e}^{-1} \mathbf{K} + \mathbf{S}_{a}^{-1})^{-1} (\lambda^2 \mathbf{S}_{a}^{-1} + \mathbf{K}^T \mathbf{S}_{e}^{-1} \mathbf{K} + \mathbf{S}_{a}^{-1}) (\lambda \mathbf{S}_{a}^{-1} + \mathbf{K}^T \mathbf{S}_{e}^{-1} \mathbf{K} + \mathbf{S}_{a}^{-1})^{-1}
 $$
 
 This matches the MATLAB code:
@@ -133,19 +133,19 @@ inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K)*((lambda_output(i)+1).^2*inv(Sa)+
 The averaging kernel matrix $$\mathbf{A}$$ relates the retrieval $$\hat{\mathbf{x}}$$ to the true state $$\mathbf{x}_{t}$$:
 
 $$
-\hat{\mathbf{x}} - \mathbf{x}_a = \mathbf{A} (\mathbf{x}_{t} - \mathbf{x}_a) + \mathbf{G} \epsilon
+\hat{\mathbf{x}} - \mathbf{x}_{a} = \mathbf{A} (\mathbf{x}_{t} - \mathbf{x}_{a}) + \mathbf{G} \epsilon
 $$
 
 where $\mathbf{G}$ is the gain matrix. For a linear problem:
 
 $$
-\mathbf{A} = (\mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1})^{-1} \mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K}
+\mathbf{A} = (\mathbf{K}^T \mathbf{S}_{e}^{-1} \mathbf{K} + \mathbf{S}_{a}^{-1})^{-1} \mathbf{K}^T \mathbf{S}_{e}^{-1} \mathbf{K}
 $$
 
 Or:
 
 $$
-\mathbf{A} = \mathbf{G K}, \quad \mathbf{G} = (\mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1})^{-1} \mathbf{K}^T \mathbf{S}_e^{-1}
+\mathbf{A} = \mathbf{G K}, \quad \mathbf{G} = (\mathbf{K}^T \mathbf{S}_{e}^{-1} \mathbf{K} + \mathbf{S}_{a}^{-1})^{-1} \mathbf{K}^T \mathbf{S}_{e}^{-1}
 $$
 
 This matches the MATLAB code:
