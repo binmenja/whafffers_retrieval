@@ -148,7 +148,7 @@ $$
 \mathbf{A} = \mathbf{G K}, \quad \mathbf{G} = (\mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1})^{-1} \mathbf{K}^T \mathbf{S}_e^{-1}
 $$
 
-This matches the MATLAB code:
+This matches the MATLAB code::
 
 ```matlab
 A = gather(inv(K'*inv(Se)*K+(lambda_output(i)+1).*inv(Sa)))*gather(K'*inv(Se)*K);
