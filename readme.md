@@ -22,13 +22,13 @@ Let $\mathbf{x}$ be the vector of $n$ atmospheric state parameters to retrieve (
 The relationship between the atmospheric state and measurements is described by a non-linear forward model $F(\mathbf{x})$:
 
 $$
-\mathbf{y} = F(\mathbf{x}) + \boldsymbol{\epsilon}
+\mathbf{y} = F(\mathbf{x}) + \varepsilon}
 $$
 
-where $\boldsymbol{\epsilon}$ represents measurement noise and forward model errors, assumed to follow a Gaussian distribution with zero mean and a known measurement error covariance matrix $\mathbf{S}_e$:
+where $\varepsilon$ represents measurement noise and forward model errors, assumed to follow a Gaussian distribution with zero mean and a known measurement error covariance matrix $\mathbf{S}_e$:
 
 $$
-\boldsymbol{\epsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{S}_e)
+\varepsilon \sim \mathcal{N}(\mathbf{0}, \mathbf{S}_e)
 $$
 
 ## Bayesian Formulation and Cost Function
@@ -130,10 +130,10 @@ inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K)*((lambda_output(i)+1).^2*inv(Sa)+
 
 ### Averaging Kernel Matrix
 
-The averaging kernel matrix $$\mathbf{A}$$ relates the retrieval $$\hat{\mathbf{x}}$$ to the true state $$\mathbf{x}_{\text{true}}$$:
+The averaging kernel matrix $$\mathbf{A}$$ relates the retrieval $$\hat{\mathbf{x}}$$ to the true state $$\mathbf{x}_{t}$$:
 
 $$
-\hat{\mathbf{x}} - \mathbf{x}_a = \mathbf{A} (\mathbf{x}_{\text{true}} - \mathbf{x}_a) + \mathbf{G} \boldsymbol{\epsilon}
+\hat{\mathbf{x}} - \mathbf{x}_a = \mathbf{A} (\mathbf{x}_{t} - \mathbf{x}_a) + \mathbf{G} \epsilon
 $$
 
 where $\mathbf{G}$ is the gain matrix. For a linear problem:
