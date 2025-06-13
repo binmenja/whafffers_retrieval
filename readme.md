@@ -90,9 +90,9 @@ $$
 
 Alternatively:
 
-$$
-\mathbf{x}_{i+1} = \mathbf{x}_i + (\mathbf{K}_i^T \mathbf{S}_e^{-1} \mathbf{K}_i + \mathbf{S}_a^{-1} + \lambda_i \mathbf{S}_a^{-1})^{-1} \left[ \mathbf{K}_i^T \mathbf{S}_e^{-1} (\mathbf{y} - F(\mathbf{x}_i)) - \mathbf{S}_a^{-1} (\mathbf{x}_i - \mathbf{x}_a) \right]
-$$
+\[
+\mathbf{x}_{i+1} = \mathbf{x}_i + \left( \mathbf{K}_i^T \mathbf{S}_e^{-1} \mathbf{K}_i + \mathbf{S}_a^{-1} + \lambda_i \mathbf{S}_a^{-1} \right)^{-1} \left[ \mathbf{K}_i^T \mathbf{S}_e^{-1} (\mathbf{y} - F(\mathbf{x}_i)) - \mathbf{S}_a^{-1} (\mathbf{x}_i - \mathbf{x}_a) \right]
+\]
 
 This matches the MATLAB code:
 
