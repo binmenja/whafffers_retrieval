@@ -97,9 +97,8 @@ end
 data_priori = importdata('/home/binmenja/direct/field_campaigns/whafffers/retrievals/era5_priori_data.mat'); % ERA5 data, not yet available
 z_truth = (data_priori.z(:,1) + 12)./1000; % m, sfc = 115m + 12m = 127m
 z_prior = (data_priori.z(:,1) + 12)./1000;
-t_prior = data_priori.t; % K
-q_prior = data_priori.q; % g/kg
-
+t_prior = data_priori.t_all; % K
+q_prior = data_priori.q_all; % g/kg
 
 x0_t = nanmean(t_prior,2);
 x0_q = nanmean(q_prior,2); 
@@ -149,7 +148,12 @@ if strcmp(variablename, 'T')
 elseif  strcmp(variablename, 'wv')
     Sa = nancov(q_prior'); % covariance matrix of q
 elseif  strcmp(variablename, 'both')
-    Sa = nancov([t_prior' q_prior']); % covariance matrix of T and q
+    disp('look here:')
+    combined_prior = [t_prior', q_prior']; % combine T and q
+    size(combined_prior)
+    Sa = nancov(combined_prior); % covariance matrix of T and q
+    size(Sa)
+    disp('---')
 end
 
 % increase Sa
@@ -178,8 +182,10 @@ x(:,1) = xa; % initial guess
 
 % aeri measurement and Se prescription
 aeri_rad_mean = mean(AERI_rad,2,'omitnan'); % RU
+nesr_mean = mean(AERI_nesr,2,'omitnan');
+% nesr_mean(nesr_mean == 0) = eps; 
+Se = diag(nesr_mean.^2);
 % Se
-Se = diag(mean(AERI_nesr,2,'omitnan').^2); % RU * RU, is 1-sigma 
 
 wv_begin = 600% cm-1, lower bound of aeri wavenumber
 wv_end = 1800;  % cm-1, upper bound of aeri wavenumber
@@ -202,7 +208,7 @@ lambda_output = NaN(1, 20);
 T = zeros(length(Sa),length(Se));
 for i = 1:20
     tic
-     disp(['Iteration: ', num2str(i)]);
+     disp(['ITERATION: ', num2str(i)]);
     
     if strcmp(variablename, 'T')
         qx = exp(q_truth);
@@ -319,6 +325,24 @@ for i = 1:20
     J(i+1) = J(i)+1;
 
     while J(i+1)>J(i)
+        disp(['Iteration ', num2str(i)]);
+        disp(['Size of K: ', mat2str(size(K))]);
+        disp(['Size of Se: ', mat2str(size(Se))]);
+        disp(['Size of Sa: ', mat2str(size(Sa))]);
+        disp(['Size of measurement: ', mat2str(size(measurement))]);
+        disp(['Size of F: ', mat2str(size(F))]);
+        disp(['Size of x(:,i): ', mat2str(size(x(:,i)))]);
+        disp(['Size of xa: ', mat2str(size(xa))]);
+        if any(isnan(K(:))) || any(isnan(Se(:))) || any(isnan(Sa(:))) || any(isnan(measurement)) || any(isnan(F)) || any(isnan(x(:,i))) || any(isnan(xa))
+            error('NaN values detected in inputs at iteration %d', i);
+        end
+        if rcond(Se) < eps
+            error('Se is singular at iteration %d. RCOND = %e', i, rcond(Se));
+        end
+        H = (1+lambda)*pinv(Sa) + K'*pinv(Se)*K;
+        if rcond(H) < eps
+            error('Hessian matrix is singular at iteration %d. RCOND = %e', i, rcond(H));
+        end
         x(:, i+1) = gather(x(:,i) + inv((1+lambda)*inv(Sa) + K'*inv(Se)*K)*(K'*inv(Se)*(measurement - F)-inv(Sa)*(x(:,i)-xa)));
 
 
@@ -331,6 +355,8 @@ for i = 1:20
             tx = x(1:nlev,i+1);
         end
         if any(tx <= 0)
+            disp('Non-positive temperatures found:');
+            disp(find(tx <= 0));
             J(i+1) = NaN;
         else
             cloud.qi = []; cloud.ql = []; cloud.z = [];
@@ -343,7 +369,7 @@ for i = 1:20
             F_new = run_single_simulation(path_modtran, path_tape5, ...
             profile, modroot, resolution, fwhm, cloud, ...
             v1, v2, angle, iLoc, emis, profile.z(end), ts);
-            F_new = F_new(:) .* 1e7;
+            F_new = F_new.rad_plt .* 1e7;
             toc
             fprintf('Forward simulation done for iteration %d.\n', i+1);
             F_new = band_conv_brb(sim_wnum, F_new, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
@@ -402,7 +428,7 @@ for i = 1:20
 
     A_output(:,:,i) = A; 
     DFS_output(i) = DFS;
-
+    DFS_per_height(:,i) = diag(A); % BRB
     d(i) = (x(:,i)-x(:,i+1))' * (pinv(Sa)+K'*pinv(Se)*K) * (x(:,i)-x(:,i+1));
     
     Sy = Se * inv(K*Sa*K'+Se) * Se;
@@ -415,6 +441,7 @@ for i = 1:20
     fprintf('Threshold d_threshold: %.4e\n', d_threshold);
     fprintf('DFS (standard): %.2f\n', DFS_output(i));
     fprintf('DFS (constrained retrieval): %.2f\n', DFS_output_CR(i));
+    fprintf('Degrees of freedom per height: %.2f\n', DFS_per_height(:,i));
     fprintf('Measurement mismatch dy(i): %.4e\n', dy(i));
 
     if  d(i) < min(d_threshold,length(Sa)./20)
@@ -428,7 +455,7 @@ retrieval_results = struct();
 retrieval_results.utc_profile = utc_profile;
 retrieval_results.retrieval_type = variablename;
 retrieval_results.iterations = i;
-retrieval_results.x_retrieved = x(:, i+1); % Final retrieved state
+retrieval_results.x_retrieved = x(:, 1:i+1); % Final retrieved state
 retrieval_results.xa = xa;                 % A priori
 retrieval_results.xtrue = xtrue;           % Truth (from sonde)
 retrieval_results.Sa = Sa;                 % A priori covariance
@@ -436,8 +463,9 @@ retrieval_results.Spos = Spos_output(:,:,i);   % Posterior covariance (classic)
 retrieval_results.Spos_CR = Spos_output_CR(:,:,i); % Posterior covariance (Rodgers full form)
 retrieval_results.A = A_output(:,:,i);     % Averaging kernel (classic)
 retrieval_results.A_CR = A_output_CR(:,:,i); % Averaging kernel (Rodgers full form)
-retrieval_results.DFS = DFS_output(i);     % Degrees of freedom for signal (classic)
-retrieval_results.DFS_CR = DFS_output_CR(i); % DFS (Rodgers)
+retrieval_results.DFS = DFS_output(1:i);     % Degrees of freedom for signal (classic)
+retrieval_results.DFS_CR = DFS_output_CR(1:i); % DFS (Rodgers)
+retrieval_results.DFS_per_height = DFS_per_height(:,1:i); % New: Save DFS per height
 retrieval_results.J = J(1:i+1);            % Cost function history
 retrieval_results.d = d(1:i);              % State vector convergence history
 retrieval_results.dy = dy(1:i);            % Measurement space convergence history
