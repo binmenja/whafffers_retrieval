@@ -148,12 +148,10 @@ if strcmp(variablename, 'T')
 elseif  strcmp(variablename, 'wv')
     Sa = nancov(q_prior'); % covariance matrix of q
 elseif  strcmp(variablename, 'both')
-    disp('look here:')
     combined_prior = [t_prior', q_prior']; % combine T and q
     size(combined_prior)
     Sa = nancov(combined_prior); % covariance matrix of T and q
     size(Sa)
-    disp('---')
 end
 
 % increase Sa
@@ -465,7 +463,7 @@ retrieval_results.A = A_output(:,:,i);     % Averaging kernel (classic)
 retrieval_results.A_CR = A_output_CR(:,:,i); % Averaging kernel (Rodgers full form)
 retrieval_results.DFS = DFS_output(1:i);     % Degrees of freedom for signal (classic)
 retrieval_results.DFS_CR = DFS_output_CR(1:i); % DFS (Rodgers)
-retrieval_results.DFS_per_height = DFS_per_height(:,1:i); % New: Save DFS per height
+retrieval_results.DFS_per_height = DFS_per_height(:,1:i); % DFS per height
 retrieval_results.J = J(1:i+1);            % Cost function history
 retrieval_results.d = d(1:i);              % State vector convergence history
 retrieval_results.dy = dy(1:i);            % Measurement space convergence history
