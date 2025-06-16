@@ -25,7 +25,7 @@ ref_date_launch = datetime('2000-01-01 00:00:00', 'InputFormat', 'yyyy-MM-dd HH:
 disp(ref_date_launch)
 
 have_jacobian_ready = 0; % whether the jacobian is already ready
-have_jacobian_iready = 1; whether jacobian ready for first iteration 
+have_jacobian_iready = 1; %whether jacobian ready for first iteration 
 fprintf('Have jacobian ready: %d\n', have_jacobian_ready);
 fprintf('Have jacobian for first iteration: %d\n', have_jacobian_iready);
 lambda_1st = 10000;
@@ -186,7 +186,7 @@ wv_end = 1800;  % cm-1, upper bound of aeri wavenumber
    
 [~,index_aeri_begin] = find(abs(AERI_wnum' - wv_begin) == min(abs(AERI_wnum' - wv_begin)));
 [~,index_aeri_end] = find(abs(AERI_wnum' - wv_end) == min(abs(AERI_wnum' - wv_end)));
-
+AERI_wnum_adj = AERI_wnum(index_aeri_begin:index_aeri_end); % cm-1
 
 measurement = aeri_rad_mean(index_aeri_begin:index_aeri_end);
 Se = Se(index_aeri_begin:index_aeri_end,index_aeri_begin:index_aeri_end); % RU^2 [chnl x chnl]
@@ -295,10 +295,11 @@ for i = 1:20
 
     % Adjust to AERI resolution
     for il=1:size(K_t,2)
-       K_t_adj(:,il) = band_conv_brb(sim_wnum, K_t(:,il), AERI_wnum, AERI_fwhm, AERI_MOPD, 'Sinc');
-       K_q_adj(:,il) = band_conv_brb(sim_wnum, K_q(:,il), AERI_wnum, AERI_fwhm, AERI_MOPD, 'Sinc');
+       K_t_adj(:,il) = band_conv_brb(sim_wnum, K_t(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+       K_q_adj(:,il) = band_conv_brb(sim_wnum, K_q(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
     end
-    F = band_conv_brb(sim_wnum, F, AERI_wnum, AERI_fwhm, AERI_MOPD, 'Sinc');
+    F = band_conv_brb(sim_wnum, F, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+    size(F)
     K_t = K_t_adj;
     K_q = K_q_adj;
     
@@ -345,7 +346,7 @@ for i = 1:20
             F_new = F_new(:) .* 1e7;
             toc
             fprintf('Forward simulation done for iteration %d.\n', i+1);
-            F_new = band_conv_brb(sim_wnum, F_new, AERI_wnum, AERI_fwhm, AERI_MOPD, 'Sinc');
+            F_new = band_conv_brb(sim_wnum, F_new, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
             J(i+1) = (measurement - F_new)'*inv(Se)*(measurement - F_new) + (x(:,i+1) - xa)'*inv(Sa)*(x(:,i+1) - xa);
 	    end
         if isnan(J(i+1))
