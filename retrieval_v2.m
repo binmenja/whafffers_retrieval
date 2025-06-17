@@ -24,8 +24,8 @@ sonde_dt = ncread(radiosonde_file, 'DATETIME'); % Format days since 2000-01-01 0
 ref_date_launch = datetime('2000-01-01 00:00:00', 'InputFormat', 'yyyy-MM-dd HH:mm:ss', 'TimeZone', 'UTC') + sonde_dt(1); % Convert to datetime
 disp(ref_date_launch)
 
-have_jacobian_ready = 1; % whether the jacobian is already ready
-have_jacobian_iready = 1; %whether jacobian ready for first iteration 
+have_jacobian_ready = 0; % whether the jacobian is already ready
+have_jacobian_iready = 0; %whether jacobian ready for first iteration 
 fprintf('Have jacobian ready: %d\n', have_jacobian_ready);
 fprintf('Have jacobian for first iteration: %d\n', have_jacobian_iready);
 lambda_1st = 10000;
@@ -94,11 +94,12 @@ case 3
 end
 
 % read priori
-data_priori = importdata('/home/binmenja/direct/field_campaigns/whafffers/retrievals/era5_priori_data.mat'); % ERA5 data, not yet available
-z_truth = (data_priori.z(:,1) + 12)./1000; % m, sfc = 115m + 12m = 127m
-z_prior = (data_priori.z(:,1) + 12)./1000;
+data_priori = importdata('/home/binmenja/direct/field_campaigns/whafffers/retrievals/era5_priori_data_v2.mat'); 
+z_truth = data_priori.z./1000; % km
+z_prior = data_priori.z./1000; % km
 t_prior = data_priori.t_all; % K
 q_prior = data_priori.q_all; % g/kg
+size(t_prior)
 
 x0_t = nanmean(t_prior,2);
 x0_q = nanmean(q_prior,2); 
@@ -311,7 +312,15 @@ for i = 1:20
             v1, v2, angle, iLoc, emis, profile.z(end), ts);
     F = F.rad_plt .* 1e7; % convert the unit to RU
     toc
+    current_path = pwd;
+    current_path = strcat(current_path, '/');
+
     fprintf('Forward simulation done.\n');
+    try
+        cleanup_modtran_files(current_path, modroot);
+    catch
+        warning(['Could not delete files for ', modroot, ' in current directory']);
+    end
 
     % Adjust to AERI resolution
     for il=1:size(K_t,2)
@@ -377,9 +386,7 @@ for i = 1:20
             profile.t = tx;
             profile.q = qx;
             profile.z = z_truth; % km
-	    ts = 0 ;
-            %F_new = run_single_simulation(path_modtran, path_tape5, profile, modroot, resolution, fwhm, cloud, v1, v2, ...
-            %angle, iLoc, emis, profile.z(end));
+	        ts = 0 ;
             tic
             F_new = run_single_simulation(path_modtran, path_tape5, ...
             profile, modroot, resolution, fwhm, cloud, ...
@@ -387,6 +394,18 @@ for i = 1:20
             F_new = F_new.rad_plt .* 1e7;
             toc
             fprintf('Forward simulation done for iteration %d.\n', i+1);
+
+            
+            disp('Trying to clean up in current directory...');
+            current_path = pwd;
+            current_path = strcat(current_path, '/');
+            try
+                cleanup_modtran_files(current_path, modroot);
+            catch
+                warning(['Could not delete files for ', modroot, ' in current directory']);
+            end
+            
+
             F_new = band_conv_brb(sim_wnum, F_new, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
             J(i+1) = (measurement - F_new)'*inv(Se)*(measurement - F_new) + (x(:,i+1) - xa)'*inv(Sa)*(x(:,i+1) - xa);
 	    end
@@ -497,8 +516,8 @@ retrieval_results.dy = dy(1:i);            % Measurement space convergence histo
 retrieval_results.lambda_history = lambda_output(1:i); % LM lambda history
 retrieval_results.F_output = F_output(:, 1:i); % Forward simulations
 retrieval_results.z = z_truth; % km, height levels
-retrieval_results.tfinal =  x(1:37, 1:i+1);
-retrieval_results.qfinal =  x(38:end, 1:i+1);
+retrieval_results.tfinal =  x(1:38, 1:i+1);
+retrieval_results.qfinal =  x(39:end, 1:i+1);
 retrieval_results.DFS_T = DFS_T;
 retrieval_results.DFS_Q = DFS_Q;
 if strcmp(variablename, 'both')
