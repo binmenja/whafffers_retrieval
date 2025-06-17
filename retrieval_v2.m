@@ -24,7 +24,7 @@ sonde_dt = ncread(radiosonde_file, 'DATETIME'); % Format days since 2000-01-01 0
 ref_date_launch = datetime('2000-01-01 00:00:00', 'InputFormat', 'yyyy-MM-dd HH:mm:ss', 'TimeZone', 'UTC') + sonde_dt(1); % Convert to datetime
 disp(ref_date_launch)
 
-have_jacobian_ready = 0; % whether the jacobian is already ready
+have_jacobian_ready = 1; % whether the jacobian is already ready
 have_jacobian_iready = 1; %whether jacobian ready for first iteration 
 fprintf('Have jacobian ready: %d\n', have_jacobian_ready);
 fprintf('Have jacobian for first iteration: %d\n', have_jacobian_iready);
@@ -71,8 +71,8 @@ AERI_dates_full = datetime(years, months, days, hour_aeri', minute_aeri', second
 % Find indices for -2 to +8 minutes around the launch time
 time_diff_duration = AERI_dates_full - ref_date_launch; % Get duration object
 time_diff = minutes(time_diff_duration); % Convert duration to numeric minutes
-start_idx = find(time_diff >= -2, 1, 'first'); % First index where time_diff >= -2 minutes
-end_idx = find(time_diff <= 8, 1, 'last');    % Last index where time_diff <= +8 minutes
+start_idx = find(time_diff >= -5, 1, 'first'); % First index where time_diff >= -5 minutes
+end_idx = find(time_diff <= 5, 1, 'last');    % Last index where time_diff <= +5 minutes
 % Ensure indices are within valid bounds
 if isempty(start_idx), start_idx = 1; end
 if isempty(end_idx), end_idx = length(AERI_dates_full); end
@@ -231,11 +231,17 @@ for i = 1:20
             K_t = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
             load(strcat('./',utc_profile,'/K_q_era5_x0.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
             K_q = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
+            sim_wnum = jacobian_info.wavenumbers;
+            K_t(isnan(K_t)) = min(abs(K_t(:)));
+            K_q(isnan(K_q)) = min(abs(K_q(:)));
         elseif i>=2
             load(strcat('./',utc_profile,'/K_t_era5_x1.mat')) % Unit is W/(cm^2*sr*cm^{-1})/K
             K_t = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
             load(strcat('./',utc_profile,'/K_q_era5_x1.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
             K_q = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
+            sim_wnum = jacobian_info.wavenumbers;
+            K_t(isnan(K_t)) = min(abs(K_t(:)));
+            K_q(isnan(K_q)) = min(abs(K_q(:)));
         end
     else 
         if i==1
@@ -263,6 +269,12 @@ for i = 1:20
         elseif i==2
             profile.q = exp(x(nlev+1:end, i)); % updated q
             profile.t = x(1:nlev, i); % updated T
+            profile.z = z_truth; % km
+            profile.p = p; % hPa
+            profile.co2 = co2; % ppmv
+            profile.o3 = o3; % g/kg
+            profile.ch4 = ch4; % ppmv
+            profile.co = co; % ppmv
             compute_modtran_jacobian_temperature(utc_profile,profile,strcat('./',utc_profile,'/K_t_era5_x1.mat'));
             load(strcat('./',utc_profile,'/K_t_era5_x1.mat')) % Unit is W/(cm^2*sr*cm^{-1})/K
             K_t = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
@@ -285,11 +297,15 @@ for i = 1:20
     cloud.qi = []; cloud.ql = []; cloud.z = [];
     profile.t = tx;
     profile.q = qx;
+    profile.z = z_truth; % km
+    profile.p = p; % hPa
+    profile.co2 = co2; % ppmv
+    profile.o3 = o3; % g/kg
+    profile.ch4 = ch4; % ppmv
+    profile.co = co; % ppmv
     ts = 0; % space temp
-    %F = run_single_simulation(path_modtran, path_tape5, ...
-    %    profile, modroot, resolution, AERI_fwhm, cloud, v1, v2, ...
-    %    angle, iLoc, emis, profile.z(end));
     tic
+    disp(profile.p)
     F = run_single_simulation(path_modtran, path_tape5, ...
             profile, modroot, resolution, fwhm, cloud, ...
             v1, v2, angle, iLoc, emis, profile.z(end), ts);
@@ -360,6 +376,7 @@ for i = 1:20
             cloud.qi = []; cloud.ql = []; cloud.z = [];
             profile.t = tx;
             profile.q = qx;
+            profile.z = z_truth; % km
 	    ts = 0 ;
             %F_new = run_single_simulation(path_modtran, path_tape5, profile, modroot, resolution, fwhm, cloud, v1, v2, ...
             %angle, iLoc, emis, profile.z(end));
@@ -425,6 +442,16 @@ for i = 1:20
     DFS = trace(A); 
 
     A_output(:,:,i) = A; 
+    if strcmp(variablename, 'both')
+        A_tt = A(1:nlev, 1:nlev);
+        A_qq = A(nlev+1:end, nlev+1:end);
+        DFS_T(i) = trace(A_tt);
+        DFS_Q(i) = trace(A_qq);
+    else
+        DFS_T(i) = NaN; % Or 0 if not retrieving T
+        DFS_Q(i) = NaN; % Or 0 if not retrieving Q
+    end
+    
     DFS_output(i) = DFS;
     DFS_per_height(:,i) = diag(A); % BRB
     d(i) = (x(:,i)-x(:,i+1))' * (pinv(Sa)+K'*pinv(Se)*K) * (x(:,i)-x(:,i+1));
@@ -469,7 +496,11 @@ retrieval_results.d = d(1:i);              % State vector convergence history
 retrieval_results.dy = dy(1:i);            % Measurement space convergence history
 retrieval_results.lambda_history = lambda_output(1:i); % LM lambda history
 retrieval_results.F_output = F_output(:, 1:i); % Forward simulations
-
+retrieval_results.z = z_truth; % km, height levels
+retrieval_results.tfinal =  x(1:37, 1:i+1);
+retrieval_results.qfinal =  x(38:end, 1:i+1);
+retrieval_results.DFS_T = DFS_T;
+retrieval_results.DFS_Q = DFS_Q;
 if strcmp(variablename, 'both')
     retrieval_results.tx_retrieved = x(1:nlev, i+1);
     retrieval_results.qx_retrieved = exp(x(nlev+1:end, i+1));
@@ -478,6 +509,8 @@ elseif strcmp(variablename, 'T')
 elseif strcmp(variablename, 'wv')
     retrieval_results.qx_retrieved = exp(x(:, i+1));
 end
+retrieval_results.AERI_wnum = AERI_wnum_adj; % cm-1
+retrieval_results.measurement = measurement; % RU
 
 timestamp = datestr(now,'yyyymmdd_HHMMSS');
 output_filename = sprintf('./%s/retrieval_results_%s_%s.mat', utc_profile, variablename, timestamp);
