@@ -312,15 +312,11 @@ for i = 1:20
             v1, v2, angle, iLoc, emis, profile.z(end), ts);
     F = F.rad_plt .* 1e7; % convert the unit to RU
     toc
+    cleanup_modtran_files(path_modtran, modroot);
+    disp('Trying to clean up in current directory as well...');
     current_path = pwd;
     current_path = strcat(current_path, '/');
-
-    fprintf('Forward simulation done.\n');
-    try
-        cleanup_modtran_files(current_path, modroot);
-    catch
-        warning(['Could not delete files for ', modroot, ' in current directory']);
-    end
+    cleanup_modtran_files(current_path, modroot);
 
     % Adjust to AERI resolution
     for il=1:size(K_t,2)
@@ -397,13 +393,11 @@ for i = 1:20
 
             
             disp('Trying to clean up in current directory...');
+            cleanup_modtran_files(path_modtran, modroot);
+            disp('Trying to clean up in current directory as well...');
             current_path = pwd;
             current_path = strcat(current_path, '/');
-            try
-                cleanup_modtran_files(current_path, modroot);
-            catch
-                warning(['Could not delete files for ', modroot, ' in current directory']);
-            end
+            cleanup_modtran_files(current_path, modroot);
             
 
             F_new = band_conv_brb(sim_wnum, F_new, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
