@@ -137,11 +137,9 @@ if ~is_q_log % enters if q is not log scale
     q_prior = log(q_prior);
     q_truth = log(q_truth);
     x0_q = log(x0_q);
-    qStr = 'log(q)'; tStr = 'T';
-    
+    disp('q converted to log scale');    
 else
     disp('q already in log scale');
-    qStr = 'q'; tStr = 'T';
 end
 
 % Sa from ERA5
@@ -155,9 +153,6 @@ elseif  strcmp(variablename, 'both')
     Sa = nancov(combined_prior); % covariance matrix of T and q
     size(Sa)
 end
-
-% increase Sa
-Sa = Sa;
 
 if strcmp(variablename, 'both')
     x = NaN(2*nlev, 0);
@@ -178,14 +173,10 @@ end
 
 x(:,1) = xa; % initial guess
 
-% Se: only diag part
-
 % aeri measurement and Se prescription
 aeri_rad_mean = mean(AERI_rad,2,'omitnan'); % RU
 nesr_mean = mean(AERI_nesr,2,'omitnan');
-% nesr_mean(nesr_mean == 0) = eps; 
 Se = diag(nesr_mean.^2);
-% Se
 
 wv_begin = 600% cm-1, lower bound of aeri wavenumber
 wv_end = 1800;  % cm-1, upper bound of aeri wavenumber
@@ -211,17 +202,13 @@ for i = 1:20
      disp(['ITERATION: ', num2str(i)]);
     
     if strcmp(variablename, 'T')
-        qx = exp(q_truth);
-        tx = t_truth;
+        qx = exp(q_truth); % This one is kept if q is not retrieved
         tx = x(:,i);
     elseif strcmp(variablename, 'wv')
-        qx = exp(q_truth);
         qx = exp(x(:,i));
-        tx = t_truth;   
+        tx = t_truth; % This one is kept if T is not retrieved
     elseif strcmp(variablename, 'both')
-        qx = exp(q_truth);
         qx = exp(x(nlev+1:end,i));
-        tx = t_truth;
         tx = x(1:nlev,i);
     end
 
@@ -246,7 +233,7 @@ for i = 1:20
             profile.z = z_truth; % km
             profile.p = p; % hPa
             profile.t = tx; % K
-            profile.q = qx; % g/kg
+            profile.q = qx; % g/kg (not log anymore)
             profile.co2 = co2; % ppmv
             profile.o3 = o3; % g/kg
             profile.ch4 = ch4; % ppmv
@@ -296,7 +283,7 @@ for i = 1:20
     profile.ch4 = ch4; % ppmv
     profile.co = co; % ppmv
     tic
-    disp(profile.p)
+
     F = run_single_simulation(path_modtran, path_tape5, ...
             profile, modroot, resolution, fwhm, cloud, ...
             v1, v2, angle, iLoc, emis, profile.z(end), ts);
@@ -315,6 +302,9 @@ for i = 1:20
     end
     F = band_conv_brb(sim_wnum, F, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
     size(F)
+    if any(isnan(F))
+        error('NaN values detected in forward simulation output F at iteration %d', i);
+    end
     K_t = K_t_adj;
     K_q = K_q_adj;
     
@@ -334,33 +324,23 @@ for i = 1:20
     J(i+1) = J(i)+1;
 
     while J(i+1)>J(i)
-        disp(['Iteration ', num2str(i)]);
-        disp(['Size of K: ', mat2str(size(K))]);
-        disp(['Size of Se: ', mat2str(size(Se))]);
-        disp(['Size of Sa: ', mat2str(size(Sa))]);
-        disp(['Size of measurement: ', mat2str(size(measurement))]);
-        disp(['Size of F: ', mat2str(size(F))]);
-        disp(['Size of x(:,i): ', mat2str(size(x(:,i)))]);
-        disp(['Size of xa: ', mat2str(size(xa))]);
-        if any(isnan(K(:))) || any(isnan(Se(:))) || any(isnan(Sa(:))) || any(isnan(measurement)) || any(isnan(F)) || any(isnan(x(:,i))) || any(isnan(xa))
-            error('NaN values detected in inputs at iteration %d', i);
-        end
-        if rcond(Se) < eps
-            error('Se is singular at iteration %d. RCOND = %e', i, rcond(Se));
-        end
-        H = (1+lambda)*pinv(Sa) + K'*pinv(Se)*K;
-        if rcond(H) < eps
-            error('Hessian matrix is singular at iteration %d. RCOND = %e', i, rcond(H));
-        end
-        x(:, i+1) = gather(x(:,i) + inv((1+lambda)*inv(Sa) + K'*inv(Se)*K)*(K'*inv(Se)*(measurement - F)-inv(Sa)*(x(:,i)-xa)));
-
+        % disp(['Iteration ', num2str(i)]);
+        % disp(['Size of K: ', mat2str(size(K))]);
+        % disp(['Size of Se: ', mat2str(size(Se))]);
+        % disp(['Size of Sa: ', mat2str(size(Sa))]);
+        % disp(['Size of measurement: ', mat2str(size(measurement))]);
+        % disp(['Size of F: ', mat2str(size(F))]);
+        % disp(['Size of x(:,i): ', mat2str(size(x(:,i)))]);
+        % disp(['Size of xa: ', mat2str(size(xa))]);
+        
+        x(:, i+1) = x(:,i) + inv((1+lambda)*inv(Sa) + K'*inv(Se)*K)*(K'*inv(Se)*(measurement - F)-inv(Sa)*(x(:,i)-xa));
 
         if strcmp(variablename, 'T')
             tx = x(:,i+1);
         elseif strcmp(variablename, 'wv')
             qx = exp(x(:,i+1));
         elseif strcmp(variablename, 'both')
-            qx = exp(x(nlev+1:end,i+1));
+            qx = exp(x(nlev+1:end,i+1)); % back to g/kg
             tx = x(1:nlev,i+1);
         end
         if any(tx <= 0)
@@ -369,8 +349,8 @@ for i = 1:20
             J(i+1) = NaN;
         else
             cloud.qi = []; cloud.ql = []; cloud.z = [];
-            profile.t = tx;
-            profile.q = qx;
+            profile.t = tx; % K
+            profile.q = qx; % g/kg
             profile.z = z_truth; % km
 	        ts = 0 ;
             tic
@@ -419,7 +399,7 @@ for i = 1:20
         
     end
     Spos = inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K)*((lambda_output(i)+1).^2*inv(Sa)+K'*inv(Se)*K)*inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K);
-    Spos_output(:,:,i) = gather(Spos);
+    Spos_output(:,:,i) = Spos;
 
     Mnew = pinv(K'*inv(Se)*K+inv(Sa)+lambda_output(i)*inv(Sa));
     Gnew = Mnew * K' * inv(Se);
@@ -429,19 +409,16 @@ for i = 1:20
     DFS_output_CR(i) = trace(A_output_CR(:,:,i));
     Spos_output_CR(:,:,i) = T*Se*T'; 
 
-    %dx2_threshold
+    %dx^2 threshold
     if retrieval_type == 1
         d_threshold = (zeros(1,size(x,1))+dx_t) * (pinv(Sa)+K'*pinv(Se)*K) * (zeros(size(x,1),1)+dx_t);
-        %d_threshold(i) = (zeros(1,size(x,1))+dx_t) * pinv(Spos) * (zeros(size(x,1),1)+dx_t);
     elseif retrieval_type == 2
-        %d_threshold(i) = (zeros(1,size(x,1))+log(1+dx_wv)) * pinv(Spos) * (zeros(size(x,1),1)+log(1+dx_wv));
         d_threshold = (zeros(1,size(x,1))+log(1+dx_wv)) * (pinv(Sa)+K'*pinv(Se)*K) * (zeros(size(x,1),1)+log(1+dx_wv));
     elseif retrieval_type == 3
         d_threshold = [zeros(1,size(x,1)./2)+dx_t (zeros(1,size(x,1)./2)+log(1+dx_wv))] * (pinv(Sa)+K'*pinv(Se)*K) * [zeros(1,size(x,1)./2)+dx_t (zeros(1,size(x,1)./2)+log(1+dx_wv))]';
-        %d_threshold(i) = [zeros(1,size(x,1)./2)+dx_t (zeros(1,size(x,1)./2)+log(1+dx_wv))] * pinv(Spos) * [zeros(1,size(x,1)./2)+dx_t (zeros(1,size(x,1)./2)+log(1+dx_wv))]';
     end
 
-    A = gather(inv(K'*inv(Se)*K+(lambda_output(i)+1).*inv(Sa)))*gather(K'*inv(Se)*K); 
+    A = inv(K'*inv(Se)*K+(lambda_output(i)+1).*inv(Sa))*K'*inv(Se)*K; 
     DFS = trace(A); 
 
     A_output(:,:,i) = A; 
@@ -456,13 +433,10 @@ for i = 1:20
     end
     
     DFS_output(i) = DFS;
-    DFS_per_height(:,i) = diag(A); % BRB
+    DFS_per_height(:,i) = diag(A); 
     d(i) = (x(:,i)-x(:,i+1))' * (pinv(Sa)+K'*pinv(Se)*K) * (x(:,i)-x(:,i+1));
-    
     Sy = Se * inv(K*Sa*K'+Se) * Se;
-
     dy(i) = (F-F_new)'*inv(Sy)*(F-F_new);
-
     drad(i,:) = measurement - F_new; % RU
 
     fprintf('Lambda: %.3e\n', lambda_output(i));
@@ -471,7 +445,7 @@ for i = 1:20
     fprintf('Threshold d_threshold: %.4e\n', d_threshold);
     fprintf('DFS (standard): %.2f\n', DFS_output(i));
     fprintf('DFS (constrained retrieval): %.2f\n', DFS_output_CR(i));
-    fprintf('Degrees of freedom per height: %.2f\n', DFS_per_height(:,i));
+    % fprintf('Degrees of freedom per height: %.2f\n', DFS_per_height(:,i));
     fprintf('Measurement mismatch dy(i): %.4e\n', dy(i));
 
     if  d(i) < min(d_threshold,length(Sa)./20)
@@ -490,6 +464,10 @@ retrieval_results.x_retrieved = x(:, 1:i+1); % Final retrieved state
 retrieval_results.xa = xa;                 % A priori
 retrieval_results.xtrue = xtrue;           % Truth (from sonde)
 retrieval_results.Sa = Sa;                 % A priori covariance
+retrieval_results.K = K;                   % Jacobian matrix
+retrieval_results.K_t = K_t;               % Jacobian for T
+retrieval_results.K_q = K_q;               % Jacobian for q
+retrieval_results.Se = Se;                 % Measurement error covariance
 retrieval_results.Spos = Spos_output(:,:,i);   % Posterior covariance (classic)
 retrieval_results.Spos_CR = Spos_output_CR(:,:,i); % Posterior covariance (Rodgers full form)
 retrieval_results.A = A_output(:,:,i);     % Averaging kernel (classic)
@@ -499,6 +477,7 @@ retrieval_results.DFS_CR = DFS_output_CR(1:i); % DFS (Rodgers)
 retrieval_results.DFS_per_height = DFS_per_height(:,1:i); % DFS per height
 retrieval_results.J = J(1:i+1);            % Cost function history
 retrieval_results.d = d(1:i);              % State vector convergence history
+retrieval_results.d_threshold = d_threshold; % Threshold for convergence
 retrieval_results.dy = dy(1:i);            % Measurement space convergence history
 retrieval_results.lambda_history = lambda_output(1:i); % LM lambda history
 retrieval_results.F_output = F_output(:, 1:i); % Forward simulations
@@ -515,7 +494,7 @@ elseif strcmp(variablename, 'T')
 elseif strcmp(variablename, 'wv')
     retrieval_results.qx_retrieved = exp(x(:, i+1));
 end
-retrieval_results.AERI_wnum = AERI_wnum_adj; % cm-1
+retrieval_results.AERI_wnum = AERI_wnum_adj; % cm^{-1}
 retrieval_results.measurement = measurement; % RU
 
 timestamp = datestr(now,'yyyymmdd_HHMMSS');
