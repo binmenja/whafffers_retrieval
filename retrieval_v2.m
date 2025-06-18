@@ -483,6 +483,7 @@ end
 retrieval_results = struct();
 
 retrieval_results.utc_profile = utc_profile;
+retrieval_results.drad = drad; % RU
 retrieval_results.retrieval_type = variablename;
 retrieval_results.iterations = i;
 retrieval_results.x_retrieved = x(:, 1:i+1); % Final retrieved state
