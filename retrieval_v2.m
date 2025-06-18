@@ -2,6 +2,7 @@ close all; clear all; clc;
 % Created by Benjamin Riot--Bretecher (2025). Based code from Lei Liu.
 addpath('/home/binmenja/direct/matlab/mylib')
 addpath('/home/binmenja/direct/models/modtran6/bin/linux')
+addpath('/home/binmenja/direct/models/modtran6/bin/linux/matlib_modtran')
 utc_profile = '202502120753'; % UTC time of the radiosonde launch
 if ~exist(utc_profile,'dir')
     system(strcat("mkdir -p ", utc_profile));
@@ -24,8 +25,8 @@ sonde_dt = ncread(radiosonde_file, 'DATETIME'); % Format days since 2000-01-01 0
 ref_date_launch = datetime('2000-01-01 00:00:00', 'InputFormat', 'yyyy-MM-dd HH:mm:ss', 'TimeZone', 'UTC') + sonde_dt(1); % Convert to datetime
 disp(ref_date_launch)
 
-have_jacobian_ready = 0; % whether the jacobian is already ready
-have_jacobian_iready = 0; %whether jacobian ready for first iteration 
+have_jacobian_ready = 1; % whether the jacobian is already ready
+have_jacobian_iready = 1; %whether jacobian ready for first iteration 
 fprintf('Have jacobian ready: %d\n', have_jacobian_ready);
 fprintf('Have jacobian for first iteration: %d\n', have_jacobian_iready);
 lambda_1st = 10000;
@@ -233,16 +234,12 @@ for i = 1:20
             load(strcat('./',utc_profile,'/K_q_era5_x0.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
             K_q = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
             sim_wnum = jacobian_info.wavenumbers;
-            K_t(isnan(K_t)) = min(abs(K_t(:)));
-            K_q(isnan(K_q)) = min(abs(K_q(:)));
         elseif i>=2
             load(strcat('./',utc_profile,'/K_t_era5_x1.mat')) % Unit is W/(cm^2*sr*cm^{-1})/K
             K_t = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
             load(strcat('./',utc_profile,'/K_q_era5_x1.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
             K_q = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
             sim_wnum = jacobian_info.wavenumbers;
-            K_t(isnan(K_t)) = min(abs(K_t(:)));
-            K_q(isnan(K_q)) = min(abs(K_q(:)));
         end
     else 
         if i==1
@@ -265,8 +262,6 @@ for i = 1:20
             load(strcat('./',utc_profile,'/K_q_era5_x0.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
             K_q = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
             sim_wnum = jacobian_info.wavenumbers;
-            K_t(isnan(K_t)) = min(abs(K_t(:)));
-            K_q(isnan(K_q)) = min(abs(K_q(:)));
         elseif i==2
             profile.q = exp(x(nlev+1:end, i)); % updated q
             profile.t = x(1:nlev, i); % updated T
@@ -283,16 +278,12 @@ for i = 1:20
             load(strcat('./',utc_profile,'/K_q_era5_x1.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
             K_q = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
             sim_wnum = jacobian_info.wavenumbers;
-	        K_t(isnan(K_t)) = min(abs(K_t(:)));
-            K_q(isnan(K_q)) = min(abs(K_q(:)));
         else
             load(strcat('./',utc_profile,'/K_t_era5_x1.mat')) % Unit is W/(cm^2*sr*cm^{-1})/K
             K_t = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
             load(strcat('./',utc_profile,'/K_q_era5_x1.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
             K_q = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
             sim_wnum = jacobian_info.wavenumbers;
-	        K_t(isnan(K_t)) = min(abs(K_t(:)));
-            K_q(isnan(K_q)) = min(abs(K_q(:)));
         end
     end
     cloud.qi = []; cloud.ql = []; cloud.z = [];
@@ -304,7 +295,6 @@ for i = 1:20
     profile.o3 = o3; % g/kg
     profile.ch4 = ch4; % ppmv
     profile.co = co; % ppmv
-    ts = 0; % space temp
     tic
     disp(profile.p)
     F = run_single_simulation(path_modtran, path_tape5, ...
@@ -472,6 +462,8 @@ for i = 1:20
     Sy = Se * inv(K*Sa*K'+Se) * Se;
 
     dy(i) = (F-F_new)'*inv(Sy)*(F-F_new);
+
+    drad(i,:) = measurement - F_new; % RU
 
     fprintf('Lambda: %.3e\n', lambda_output(i));
     fprintf('Cost function J(i): %.4f\n', J(i));
