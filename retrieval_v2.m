@@ -1,18 +1,26 @@
 close all; clear all; clc;
-% Created by Benjamin Riot--Bretecher (2025). Based code from Lei Liu.
+% Created by Benjamin Riot--Bretecher (2025). 
 addpath('/home/binmenja/direct/matlab/mylib')
 addpath('/home/binmenja/direct/models/modtran6/bin/linux')
 addpath('/home/binmenja/direct/models/modtran6/bin/linux/matlib_modtran')
+
 utc_profile = '202502120753'; % UTC time of the radiosonde launch
 if ~exist(utc_profile,'dir')
     system(strcat("mkdir -p ", utc_profile));
 end
 
-path_modtran = '/home/binmenja/direct/models/modtran6/bin/linux/';
-v1 = 520;
-v2 = 1800;
-resolution = 0.1; % cm-1
-fwhm = resolution*2;
+% Retrieval settings
+have_jacobian_ready = 0; % whether the jacobian is already ready
+have_jacobian_iready = 0; %whether jacobian ready for first iteration 
+fprintf('Have jacobian ready: %d\n', have_jacobian_ready);
+fprintf('Have jacobian for first iteration: %d\n', have_jacobian_iready);
+lambda_1st = 10000;
+is_q_log = 0; % whether q is already in log scale; 0: no, 1: yes
+dx_wv = 0.1; % 10 percent uncertainty for wv
+dx_t = 0.5; % 0.5K uncertainty for T
+
+fprintf('Is q in log scale: %d\n', is_q_log);
+path_modtran = '/home/binmenja/direct/models/modtran6/bin/linux/'; v1 = 520; v2 = 1800; resolution = 0.1; fwhm = resolution*2;
 path_tape5 = ['/home/binmenja/direct/field_campaigns/whafffers/tape5/', utc_profile, '/'];
 if ~exist(path_tape5,'dir')
     system(["mkdir -p ", path_tape5]);
@@ -25,22 +33,8 @@ sonde_dt = ncread(radiosonde_file, 'DATETIME'); % Format days since 2000-01-01 0
 ref_date_launch = datetime('2000-01-01 00:00:00', 'InputFormat', 'yyyy-MM-dd HH:mm:ss', 'TimeZone', 'UTC') + sonde_dt(1); % Convert to datetime
 disp(ref_date_launch)
 
-have_jacobian_ready = 1; % whether the jacobian is already ready
-have_jacobian_iready = 1; %whether jacobian ready for first iteration 
-fprintf('Have jacobian ready: %d\n', have_jacobian_ready);
-fprintf('Have jacobian for first iteration: %d\n', have_jacobian_iready);
-lambda_1st = 10000;
-is_q_log = 0; % whether q is already in log scale; 0: no, 1: yes
-fprintf('Is q in log scale: %d\n', is_q_log);
-
-dx_wv = 0.1; % 10 precent uncertainty for wv
-dx_t = 0.5; % 0.5K uncertainty for T
-cf_id = 0; % 1: combine dx and cf convergence criteria, 0: only use dx convergence critieria
-cf_grad = 1e-3; % abs(J(i+1) - J(i)) < cf_grad * J(i)
-
+% AERI
 aeri_file = '/home/binmenja/direct/field_campaigns/whafffers/aeri_data/gault/atmospheric.physics_aeri_125_MCGILL_gault_20250212T000424Z_20250212T235249Z_001.nc';
-
-% Convolute total error to AERI resolution
 AERI_MOPD = ncread(aeri_file,'MOPD'); % AERI MOPD
 AERI_fwhm = 1.2067/(2*AERI_MOPD); % AERI FWHM
 AERI_cal_error_full = ncread(aeri_file, 'RADIANCE.SKY_ERROR');
@@ -48,15 +42,10 @@ AERI_nesr_full = ncread(aeri_file, 'RADIANCE.SKY_NOISE'); % [RU]
 AERI_rad_full = ncread(aeri_file, 'RADIANCE.SKY_CLEANED'); % [RU]
 AERI_wnum = ncread(aeri_file, 'WAVENUMBER'); %[cm-1]
 AERI_dates_full = ncread(aeri_file, 'DATETIME'); % Format is YYYYMMDDThhmmssZ
-% Convert the char var AERI_dates to string
 AERI_dates_full = string(AERI_dates_full.');
-
-% Custom approach for ISO 8601 format
 years = double(extractBetween(AERI_dates_full, 1, 4));
 months = double(extractBetween(AERI_dates_full, 5, 6));
 days = double(extractBetween(AERI_dates_full, 7, 8));
-% disp(days)
-% Find position of 'T' to locate the time part
 T_pos = strfind(AERI_dates_full, 'T');
 for i = 1:length(AERI_dates_full)
     if ~isempty(T_pos{i})
@@ -69,22 +58,18 @@ for i = 1:length(AERI_dates_full)
     end
 end
 AERI_dates_full = datetime(years, months, days, hour_aeri', minute_aeri', second_aeri', 'TimeZone', 'UTC');
-% Find indices for -2 to +8 minutes around the launch time
-time_diff_duration = AERI_dates_full - ref_date_launch; % Get duration object
-time_diff = minutes(time_diff_duration); % Convert duration to numeric minutes
+time_diff_duration = AERI_dates_full - ref_date_launch; 
+time_diff = minutes(time_diff_duration); 
 start_idx = find(time_diff >= -5, 1, 'first'); % First index where time_diff >= -5 minutes
 end_idx = find(time_diff <= 5, 1, 'last');    % Last index where time_diff <= +5 minutes
-% Ensure indices are within valid bounds
 if isempty(start_idx), start_idx = 1; end
 if isempty(end_idx), end_idx = length(AERI_dates_full); end
-
-% Extract the timestamp around the radiosonde launch time
 AERI_rad = AERI_rad_full(:, start_idx:end_idx);
 AERI_cal_error = AERI_cal_error_full(:, start_idx:end_idx); % 1-sigma absolute error
 AERI_nesr = AERI_nesr_full(:, start_idx:end_idx); % 1-sigma noise eq. spe. rad.
 
 % retrieval type: 1(T only), 2(wv only), 3(T and wv)
-retrieval_type = 3; %1/2/3 
+retrieval_type = 3; 
 switch retrieval_type
 case 1
     variablename = 'T';
@@ -100,16 +85,13 @@ z_truth = data_priori.z./1000; % km
 z_prior = data_priori.z./1000; % km
 t_prior = data_priori.t_all; % K
 q_prior = data_priori.q_all; % g/kg
-size(t_prior)
-
 x0_t = nanmean(t_prior,2);
 x0_q = nanmean(q_prior,2); 
-
 nlev = length(z_truth);
 
 % read truth
 load('/home/binmenja/direct/field_campaigns/whafffers/profile_202502120753UTC.mat'); % Already patched with ERA5 data
-z_sonde = profile.z(:); % km
+z_sonde = profile.z(:) + z_truth(1); % km; adjust to same base height!
 p_sonde = profile.p(:); % hPa
 t_sonde = profile.t(:); % K
 q_sonde = profile.q(:); % g/kg
@@ -359,6 +341,9 @@ for i = 1:20
             v1, v2, angle, iLoc, emis, profile.z(end), ts);
             F_new = F_new.rad_plt .* 1e7;
             toc
+            F_new = band_conv_brb(sim_wnum, F_new, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+            J(i+1) = (measurement - F_new)'*inv(Se)*(measurement - F_new) + (x(:,i+1) - xa)'*inv(Sa)*(x(:,i+1) - xa);
+
             fprintf('Forward simulation done for iteration %d.\n', i+1);
 
             
@@ -368,10 +353,8 @@ for i = 1:20
             current_path = pwd;
             current_path = strcat(current_path, '/');
             cleanup_modtran_files(current_path, modroot);
-            
-
-            F_new = band_conv_brb(sim_wnum, F_new, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
-            J(i+1) = (measurement - F_new)'*inv(Se)*(measurement - F_new) + (x(:,i+1) - xa)'*inv(Sa)*(x(:,i+1) - xa);
+        
+           
 	    end
         if isnan(J(i+1))
             J(i+1) = J(i)+1;
@@ -393,11 +376,7 @@ for i = 1:20
         end
         
     end
-    if isnan(lambda_output(i))
-        
-        fprintf('Warning: lambda_output(%d) was not assigned (cost function did not decrease). I must check the values of the matrices.\n', i);
-        
-    end
+    
     Spos = inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K)*((lambda_output(i)+1).^2*inv(Sa)+K'*inv(Se)*K)*inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K);
     Spos_output(:,:,i) = Spos;
 
@@ -460,9 +439,9 @@ retrieval_results.utc_profile = utc_profile;
 retrieval_results.drad = drad; % RU
 retrieval_results.retrieval_type = variablename;
 retrieval_results.iterations = i;
-retrieval_results.x_retrieved = x(:, 1:i+1); % Final retrieved state
+retrieval_results.x_retrieved = x(:, 1:i+1); % Final retrieved state (log for q)
 retrieval_results.xa = xa;                 % A priori
-retrieval_results.xtrue = xtrue;           % Truth (from sonde)
+retrieval_results.xtrue = xtrue;           % Truth (from sonde), log for q
 retrieval_results.Sa = Sa;                 % A priori covariance
 retrieval_results.K = K;                   % Jacobian matrix
 retrieval_results.K_t = K_t;               % Jacobian for T
@@ -488,7 +467,7 @@ retrieval_results.DFS_T = DFS_T;
 retrieval_results.DFS_Q = DFS_Q;
 if strcmp(variablename, 'both')
     retrieval_results.tx_retrieved = x(1:nlev, i+1);
-    retrieval_results.qx_retrieved = exp(x(nlev+1:end, i+1));
+    retrieval_results.qx_retrieved = exp(x(nlev+1:end, i+1)); % g/kg
 elseif strcmp(variablename, 'T')
     retrieval_results.tx_retrieved = x(:, i+1);
 elseif strcmp(variablename, 'wv')
