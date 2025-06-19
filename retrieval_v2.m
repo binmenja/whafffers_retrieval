@@ -11,7 +11,7 @@ end
 
 % Retrieval settings
 have_jacobian_ready = 0; % whether the jacobian is already ready
-have_jacobian_iready = 0; %whether jacobian ready for first iteration 
+have_jacobian_iready = 1; %whether jacobian ready for first iteration 
 fprintf('Have jacobian ready: %d\n', have_jacobian_ready);
 fprintf('Have jacobian for first iteration: %d\n', have_jacobian_iready);
 lambda_1st = 10000;
@@ -251,7 +251,7 @@ for i = 1:20
             have_jacobian_iready = 1; % jacobian for first iteration is now ready
 
             % Adjust to AERI resolution
-            for il=1:size(K_t,2)
+            for il=1:size(K_t_ori,2)
                 K_t(:,il) = band_conv_brb(sim_wnum, K_t_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
                 K_q(:,il) = band_conv_brb(sim_wnum, K_q_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
             end
@@ -270,7 +270,7 @@ for i = 1:20
             have_jacobian_ready = 1; % jacobians are now ready 
 
             % Adjust to AERI resolution
-            for il=1:size(K_t,2)
+            for il=1:size(K_t_ori,2)
                 K_t(:,il) = band_conv_brb(sim_wnum, K_t_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
                 K_q(:,il) = band_conv_brb(sim_wnum, K_q_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
             end
@@ -280,10 +280,27 @@ for i = 1:20
     end
 
     tic
-    F = run_single_simulation(path_modtran, path_tape5, ...
-            profile_input, modroot, resolution, fwhm, cloud, ...
-            v1, v2, angle, iLoc, emis, profile.z(end), ts);
-    F = F.rad_plt .* 1e7; % convert the unit to RU
+    if i==1
+        F = run_single_simulation(path_modtran, path_tape5, ...
+                    profile_input, modroot, resolution, fwhm, cloud, ...
+                    v1, v2, angle, iLoc, emis, profile.z(end), ts);
+        F = F.rad_plt .* 1e7; % convert to RU
+
+        if any(isnan(F)) || any(F < 0)
+            fprintf('NaN or negative values detected in forward simulation output F at iteration %d \n', i);
+            negative_indices = find(F < 0);
+            if ~isempty(negative_indices)
+                fprintf('Negative values found at indices: %s\n', mat2str(negative_indices  ));
+                fprintf('Corresponding wavenumbers: %s\n', mat2str(sim_wnum(negative_indices )));
+                fprintf('Corresponding F values: %s\n', mat2str(F(negative_indices )));
+                disp('Adjusting negative values to zero...');
+                F(negative_indices) = 0; % Adjust negative values to zero
+            end
+        end
+
+    else
+        F = F_new; % use the previous forward simulation result, which is the same
+    end
     toc
 
     cleanup_modtran_files(path_modtran, modroot); disp('Trying to clean up in current directory as well...');
@@ -291,10 +308,16 @@ for i = 1:20
 
 
     F = band_conv_brb(sim_wnum, F, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
-    size(F)
     if any(isnan(F)) || any(F < 0)
-        fprintf('NaN or negative values detected in forward simulation output F at iteration %d', i);
-        % error('NaN values detected in forward simulation output F at iteration %d', i);
+        fprintf('NaN or negative values detected in forward simulation output F at iteration %d \n', i);
+        negative_indices = find(F < 0);
+        if ~isempty(negative_indices)
+            fprintf('Negative values found at indices: %s\n', mat2str(negative_indices  ));
+            fprintf('Corresponding wavenumbers: %s\n', mat2str(AERI_wnum_adj(negative_indices )));
+            fprintf('Corresponding F values: %s\n', mat2str(F(negative_indices )));
+            disp('Adjusting negative values to zero...');
+            F(negative_indices) = 0; % Adjust negative values to zero
+        end
     end
 
     if strcmp(variablename, 'both')
@@ -345,6 +368,19 @@ for i = 1:20
             F_new = F_new.rad_plt .* 1e7;
             toc
             F_new = band_conv_brb(sim_wnum, F_new, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+
+            if any(isnan(F_new)) || any(F_new < 0)
+                fprintf('NaN or negative values detected in forward simulation output F at iteration %d \n', i);
+                negative_indices = find(F_new < 0);
+                if ~isempty(negative_indices)
+                    fprintf('Negative values found at indices: %s\n', mat2str(negative_indices  ));
+                    fprintf('Corresponding wavenumbers: %s\n', mat2str(AERI_wnum_adj(negative_indices )));
+                    fprintf('Corresponding F values: %s\n', mat2str(F_new(negative_indices )));
+                    disp('Adjusting negative values to zero...');
+                    F_new(negative_indices) = 0; % Adjust negative values to zero
+                end
+            end
+            
             J(i+1) = (measurement - F_new)'*inv(Se)*(measurement - F_new) + (x(:,i+1) - xa)'*inv(Sa)*(x(:,i+1) - xa);
 
             fprintf('Forward simulation done for iteration %d.\n', i+1);
