@@ -19,6 +19,9 @@ is_q_log = 0; % whether q is already in log scale; 0: no, 1: yes
 dx_wv = 0.1; % 10 percent uncertainty for wv
 dx_t = 0.5; % 0.5K uncertainty for T
 
+cloud.qi = []; cloud.ql = []; cloud.z = []; % clear-sky
+
+
 fprintf('Is q in log scale: %d\n', is_q_log);
 path_modtran = '/home/binmenja/direct/models/modtran6/bin/linux/'; v1 = 520; v2 = 1800; resolution = 0.1; fwhm = resolution*2;
 path_tape5 = ['/home/binmenja/direct/field_campaigns/whafffers/tape5/', utc_profile, '/'];
@@ -60,8 +63,8 @@ end
 AERI_dates_full = datetime(years, months, days, hour_aeri', minute_aeri', second_aeri', 'TimeZone', 'UTC');
 time_diff_duration = AERI_dates_full - ref_date_launch; 
 time_diff = minutes(time_diff_duration); 
-start_idx = find(time_diff >= -5, 1, 'first'); % First index where time_diff >= -5 minutes
-end_idx = find(time_diff <= 5, 1, 'last');    % Last index where time_diff <= +5 minutes
+start_idx = find(time_diff >= -1, 1, 'first'); % start (~ 1 minute before launch)
+end_idx = find(time_diff <= 10, 1, 'last');    % end (10 minutes after launch)
 if isempty(start_idx), start_idx = 1; end
 if isempty(end_idx), end_idx = length(AERI_dates_full); end
 AERI_rad = AERI_rad_full(:, start_idx:end_idx);
@@ -114,6 +117,14 @@ n2o = zeros(1,nlev) + 0.3171; % ppmv, vertically uniform
 ccl4 = 1.0012e-4; % ppmv, vertically uniform
 f11 = 2.6009e-4; % ppmv, vertically uniform
 f12 = 5.4520e-4;% ppmv, vertically uniform
+
+% Check if z_truth, z_sonde and z_prior are the same
+if ~isequal(z_truth, z_sonde) || ~isequal(z_truth, z_prior)
+    disp('z_truth, z_sonde and z_prior must be the same');
+    fprintf('z_truth 1: %s\n', mat2str(z_truth(1)));
+    fprintf('z_sonde 1: %s\n', mat2str(z_sonde(1)));
+    fprintf('z_prior 1: %s\n', mat2str(z_prior(1)));
+end
 
 if ~is_q_log % enters if q is not log scale
     q_prior = log(q_prior);
@@ -174,12 +185,21 @@ Se = Se(index_aeri_begin:index_aeri_end,index_aeri_begin:index_aeri_end); % RU^2
 clear J
 clear d
 
+profile_input.co2 = co2; % ppmv
+profile_input.o3 = o3; % g/kg
+profile_input.ch4 = ch4; % ppmv
+profile_input.co = co; % ppmv
+profile_input.z = z_truth; % km
+profile_input.p = p; % hPa
+ts = 0; % space temperature
 
-%% retrieval
+%% Retrieval
 lambda = lambda_1st; %for Levenberg-Marquardt regularization
 lambda_output = NaN(1, 20); 
 T = zeros(length(Sa),length(Se));
 for i = 1:20
+
+
     tic
      disp(['ITERATION: ', num2str(i)]);
     
@@ -194,102 +214,88 @@ for i = 1:20
         tx = x(1:nlev,i);
     end
 
+    % Reassign profile_input for q and T
+    profile_input.t = tx; % K
+    profile_input.q = qx; % g/kg (not log anymore)
    
 
     if have_jacobian_ready
         if i==1
             load(strcat('./',utc_profile,'/K_t_era5_x0.mat')) % Unit is W/(cm^2*sr*cm^{-1})/K
-            K_t = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
+            K_t_ori = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
             load(strcat('./',utc_profile,'/K_q_era5_x0.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
-            K_q = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
+            K_q_ori = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
             sim_wnum = jacobian_info.wavenumbers;
-        elseif i>=2
+        elseif i==2
             load(strcat('./',utc_profile,'/K_t_era5_x1.mat')) % Unit is W/(cm^2*sr*cm^{-1})/K
-            K_t = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
+            K_t_ori = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
             load(strcat('./',utc_profile,'/K_q_era5_x1.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
-            K_q = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
+            K_q_ori = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
             sim_wnum = jacobian_info.wavenumbers;
+        else
+            disp('Using jacobian from the second iteration. No need to recompute or reload.');
         end
     else 
         if i==1
-            profile.z = z_truth; % km
-            profile.p = p; % hPa
-            profile.t = tx; % K
-            profile.q = qx; % g/kg (not log anymore)
-            profile.co2 = co2; % ppmv
-            profile.o3 = o3; % g/kg
-            profile.ch4 = ch4; % ppmv
-            profile.co = co; % ppmv
             if ~have_jacobian_iready
-                compute_modtran_jacobian_temperature(utc_profile,profile,strcat('./',utc_profile,'/K_t_era5_x0.mat'));
+                compute_modtran_jacobian_temperature(utc_profile,profile_input,strcat('./',utc_profile,'/K_t_era5_x0.mat'));
             end
             load(strcat('./',utc_profile,'/K_t_era5_x0.mat')) % Unit is W/(cm^2*sr*cm^{-1})/K
-            K_t = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
+            K_t_ori = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
             if ~have_jacobian_iready
-                compute_modtran_jacobian_q(utc_profile,profile,strcat('./',utc_profile,'/K_q_era5_x0.mat'));
+                compute_modtran_jacobian_q(utc_profile,profile_input,strcat('./',utc_profile,'/K_q_era5_x0.mat'));
             end
             load(strcat('./',utc_profile,'/K_q_era5_x0.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
-            K_q = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
+            K_q_ori = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
             sim_wnum = jacobian_info.wavenumbers;
+            have_jacobian_iready = 1; % jacobian for first iteration is now ready
+
+            % Adjust to AERI resolution
+            for il=1:size(K_t,2)
+                K_t(:,il) = band_conv_brb(sim_wnum, K_t_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+                K_q(:,il) = band_conv_brb(sim_wnum, K_q_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+            end
         elseif i==2
-            profile.q = exp(x(nlev+1:end, i)); % updated q
-            profile.t = x(1:nlev, i); % updated T
-            profile.z = z_truth; % km
-            profile.p = p; % hPa
-            profile.co2 = co2; % ppmv
-            profile.o3 = o3; % g/kg
-            profile.ch4 = ch4; % ppmv
-            profile.co = co; % ppmv
-            compute_modtran_jacobian_temperature(utc_profile,profile,strcat('./',utc_profile,'/K_t_era5_x1.mat'));
+            % Readjust profile input for the second iteration
+            profile_input.q = exp(x(nlev+1:end, i)); % updated q
+            profile_input.t = x(1:nlev, i); % updated T
+
+            compute_modtran_jacobian_temperature(utc_profile,profile_input,strcat('./',utc_profile,'/K_t_era5_x1.mat'));
             load(strcat('./',utc_profile,'/K_t_era5_x1.mat')) % Unit is W/(cm^2*sr*cm^{-1})/K
-            K_t = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
-            compute_modtran_jacobian_q(utc_profile,profile,strcat('./',utc_profile,'/K_q_era5_x1.mat'));
+            K_t_ori = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
+            compute_modtran_jacobian_q(utc_profile,profile_input,strcat('./',utc_profile,'/K_q_era5_x1.mat'));
             load(strcat('./',utc_profile,'/K_q_era5_x1.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
-            K_q = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
+            K_q_ori = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
             sim_wnum = jacobian_info.wavenumbers;
+            have_jacobian_ready = 1; % jacobians are now ready 
+
+            % Adjust to AERI resolution
+            for il=1:size(K_t,2)
+                K_t(:,il) = band_conv_brb(sim_wnum, K_t_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+                K_q(:,il) = band_conv_brb(sim_wnum, K_q_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+            end
         else
-            load(strcat('./',utc_profile,'/K_t_era5_x1.mat')) % Unit is W/(cm^2*sr*cm^{-1})/K
-            K_t = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
-            load(strcat('./',utc_profile,'/K_q_era5_x1.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
-            K_q = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
-            sim_wnum = jacobian_info.wavenumbers;
+            disp('Using jacobian from the second iteration. No need to recompute or reload.');
         end
     end
-    cloud.qi = []; cloud.ql = []; cloud.z = [];
-    profile.t = tx;
-    profile.q = qx;
-    profile.z = z_truth; % km
-    profile.p = p; % hPa
-    profile.co2 = co2; % ppmv
-    profile.o3 = o3; % g/kg
-    profile.ch4 = ch4; % ppmv
-    profile.co = co; % ppmv
-    tic
 
+    tic
     F = run_single_simulation(path_modtran, path_tape5, ...
-            profile, modroot, resolution, fwhm, cloud, ...
+            profile_input, modroot, resolution, fwhm, cloud, ...
             v1, v2, angle, iLoc, emis, profile.z(end), ts);
     F = F.rad_plt .* 1e7; % convert the unit to RU
     toc
-    cleanup_modtran_files(path_modtran, modroot);
-    disp('Trying to clean up in current directory as well...');
-    current_path = pwd;
-    current_path = strcat(current_path, '/');
-    cleanup_modtran_files(current_path, modroot);
 
-    % Adjust to AERI resolution
-    for il=1:size(K_t,2)
-       K_t_adj(:,il) = band_conv_brb(sim_wnum, K_t(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
-       K_q_adj(:,il) = band_conv_brb(sim_wnum, K_q(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
-    end
+    cleanup_modtran_files(path_modtran, modroot); disp('Trying to clean up in current directory as well...');
+    current_path = pwd; current_path = strcat(current_path, '/');cleanup_modtran_files(current_path, modroot);
+
+
     F = band_conv_brb(sim_wnum, F, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
     size(F)
-    if any(isnan(F))
-        error('NaN values detected in forward simulation output F at iteration %d', i);
+    if any(isnan(F)) || any(F < 0)
+        fprintf('NaN or negative values detected in forward simulation output F at iteration %d', i);
+        % error('NaN values detected in forward simulation output F at iteration %d', i);
     end
-    K_t = K_t_adj;
-    K_q = K_q_adj;
-    
 
     if strcmp(variablename, 'both')
         K = [K_t K_q]; % dimension: (nwv,nlev x 2)
@@ -330,14 +336,11 @@ for i = 1:20
             disp(find(tx <= 0));
             J(i+1) = NaN;
         else
-            cloud.qi = []; cloud.ql = []; cloud.z = [];
-            profile.t = tx; % K
-            profile.q = qx; % g/kg
-            profile.z = z_truth; % km
-	        ts = 0 ;
+            profile_input.t = tx; % K
+            profile_input.q = qx; % g/kg
             tic
             F_new = run_single_simulation(path_modtran, path_tape5, ...
-            profile, modroot, resolution, fwhm, cloud, ...
+            profile_input, modroot, resolution, fwhm, cloud, ...
             v1, v2, angle, iLoc, emis, profile.z(end), ts);
             F_new = F_new.rad_plt .* 1e7;
             toc
@@ -376,17 +379,25 @@ for i = 1:20
         end
         
     end
-    
+
+    % Lambda method, lambda not zero
     Spos = inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K)*((lambda_output(i)+1).^2*inv(Sa)+K'*inv(Se)*K)*inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K);
     Spos_output(:,:,i) = Spos;
+    A = inv(K'*inv(Se)*K+(lambda_output(i)+1).*inv(Sa))*K'*inv(Se)*K; 
+    A_output(:,:,i) = A;
+    DFS_output(i) = trace(A); % Degrees of freedom for signal
+    DFS_per_height(:,i) = diag(A); % Degrees of freedom per height
 
-    Mnew = pinv(K'*inv(Se)*K+inv(Sa)+lambda_output(i)*inv(Sa));
-    Gnew = Mnew * K' * inv(Se);
-    T = Gnew + ((eye(length(Sa))-Gnew*K-Mnew*inv(Sa)))*T;
 
-    A_output_CR(:,:,i) = T*K;
-    DFS_output_CR(i) = trace(A_output_CR(:,:,i));
-    Spos_output_CR(:,:,i) = T*Se*T'; 
+    % Fair version, lambda = 0
+    Spos_CR = inv(K'*inv(Se)*K+inv(Sa));
+    Spos_output_CR(:,:,i) = Spos_CR;
+    A_CR = Spos_CR * K' * inv(Se) * K;
+    A_output_CR(:,:,i) = A_CR;
+    DFS_output_CR(i) = trace(A_CR); % Degrees of freedom for signal (Rodgers full form)
+    DFS_per_height_CR(:,i) = diag(A_CR); % Degrees of freedom per height (Rodgers full form)
+    DFS_T_output_CR(i) = trace(A_CR(1:nlev, 1:nlev)); % DFS for T (Rodgers full form)
+    DFS_Q_output_CR(i) = trace(A_CR(nlev+1:end, nlev+1:end)); % DFS for q (Rodgers full form)
 
     %dx^2 threshold
     if retrieval_type == 1
@@ -397,22 +408,7 @@ for i = 1:20
         d_threshold = [zeros(1,size(x,1)./2)+dx_t (zeros(1,size(x,1)./2)+log(1+dx_wv))] * (pinv(Sa)+K'*pinv(Se)*K) * [zeros(1,size(x,1)./2)+dx_t (zeros(1,size(x,1)./2)+log(1+dx_wv))]';
     end
 
-    A = inv(K'*inv(Se)*K+(lambda_output(i)+1).*inv(Sa))*K'*inv(Se)*K; 
-    DFS = trace(A); 
-
-    A_output(:,:,i) = A; 
-    if strcmp(variablename, 'both')
-        A_tt = A(1:nlev, 1:nlev);
-        A_qq = A(nlev+1:end, nlev+1:end);
-        DFS_T(i) = trace(A_tt);
-        DFS_Q(i) = trace(A_qq);
-    else
-        DFS_T(i) = NaN; % Or 0 if not retrieving T
-        DFS_Q(i) = NaN; % Or 0 if not retrieving Q
-    end
     
-    DFS_output(i) = DFS;
-    DFS_per_height(:,i) = diag(A); 
     d(i) = (x(:,i)-x(:,i+1))' * (pinv(Sa)+K'*pinv(Se)*K) * (x(:,i)-x(:,i+1));
     Sy = Se * inv(K*Sa*K'+Se) * Se;
     dy(i) = (F-F_new)'*inv(Sy)*(F-F_new);
@@ -422,9 +418,10 @@ for i = 1:20
     fprintf('Cost function J(i): %.4f\n', J(i));
     fprintf('Step size d(i): %.4e\n', d(i));
     fprintf('Threshold d_threshold: %.4e\n', d_threshold);
+    fprintf('d value: %.4e\n', d(i));
     fprintf('DFS (standard): %.2f\n', DFS_output(i));
-    fprintf('DFS (constrained retrieval): %.2f\n', DFS_output_CR(i));
-    % fprintf('Degrees of freedom per height: %.2f\n', DFS_per_height(:,i));
+    fprintf('DFS for T (lambda equals zero): %.2f\n', DFS_T_output_CR(i));
+    fprintf('DFS for q (lambda equals zero): %.2f\n', DFS_Q_output_CR(i));
     fprintf('Measurement mismatch dy(i): %.4e\n', dy(i));
 
     if  d(i) < min(d_threshold,length(Sa)./20)
@@ -452,8 +449,11 @@ retrieval_results.Spos_CR = Spos_output_CR(:,:,i); % Posterior covariance (Rodge
 retrieval_results.A = A_output(:,:,i);     % Averaging kernel (classic)
 retrieval_results.A_CR = A_output_CR(:,:,i); % Averaging kernel (Rodgers full form)
 retrieval_results.DFS = DFS_output(1:i);     % Degrees of freedom for signal (classic)
-retrieval_results.DFS_CR = DFS_output_CR(1:i); % DFS (Rodgers)
+retrieval_results.DFS_CR = DFS_output_CR(1:i); % DFS (lambda = 0 version)
 retrieval_results.DFS_per_height = DFS_per_height(:,1:i); % DFS per height
+retrieval_results.DFS_per_height_CR = DFS_per_height_CR(:,1:i); % DFS per height (lambda = 0 version)
+retrieval_results.DFS_T = DFS_T_output_CR(1:i); % DFS for T
+retrieval_results.DFS_Q = DFS_Q_output_CR(1:i); % DFS for q
 retrieval_results.J = J(1:i+1);            % Cost function history
 retrieval_results.d = d(1:i);              % State vector convergence history
 retrieval_results.d_threshold = d_threshold; % Threshold for convergence
