@@ -10,7 +10,7 @@ if ~exist(utc_profile,'dir')
 end
 
 % Retrieval settings
-have_jacobian_ready = 0; % whether the jacobian is already ready
+have_jacobian_ready = 1; % whether the jacobian is already ready
 have_jacobian_iready = 1; %whether jacobian ready for first iteration 
 fprintf('Have jacobian ready: %d\n', have_jacobian_ready);
 fprintf('Have jacobian for first iteration: %d\n', have_jacobian_iready);
@@ -226,15 +226,26 @@ for i = 1:20
             load(strcat('./',utc_profile,'/K_q_era5_x0.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
             K_q_ori = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
             sim_wnum = jacobian_info.wavenumbers;
+            % Adjust to AERI resolution
+            for il=1:size(K_t_ori,2)
+                K_t(:,il) = band_conv_brb(sim_wnum, K_t_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+                K_q(:,il) = band_conv_brb(sim_wnum, K_q_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+            end
         elseif i==2
             load(strcat('./',utc_profile,'/K_t_era5_x1.mat')) % Unit is W/(cm^2*sr*cm^{-1})/K
             K_t_ori = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
             load(strcat('./',utc_profile,'/K_q_era5_x1.mat'))% Unit is W/(cm^2*sr*cm^{-1})/log(g/kg)
             K_q_ori = jacobian_info.jacobian .* 1e7; % convert to RU/log(g/kg)
             sim_wnum = jacobian_info.wavenumbers;
+            % Adjust to AERI resolution
+            for il=1:size(K_t_ori,2)
+                K_t(:,il) = band_conv_brb(sim_wnum, K_t_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+                K_q(:,il) = band_conv_brb(sim_wnum, K_q_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+            end
         else
             disp('Using jacobian from the second iteration. No need to recompute or reload.');
         end
+        
     else 
         if i==1
             if ~have_jacobian_iready
@@ -307,7 +318,10 @@ for i = 1:20
     current_path = pwd; current_path = strcat(current_path, '/');cleanup_modtran_files(current_path, modroot);
 
 
-    F = band_conv_brb(sim_wnum, F, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
+    if i == 1
+        F = band_conv_brb(sim_wnum, F, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc'); % only needs to be done if not F_new.
+    end
+
     if any(isnan(F)) || any(F < 0)
         fprintf('NaN or negative values detected in forward simulation output F at iteration %d \n', i);
         negative_indices = find(F < 0);
