@@ -10,8 +10,8 @@ if ~exist(utc_profile,'dir')
 end
 
 % Retrieval settings
-have_jacobian_ready = 1; % whether the jacobian is already ready
-have_jacobian_iready = 1; %whether jacobian ready for first iteration 
+have_jacobian_ready = 0; % whether the jacobian is already ready
+have_jacobian_iready = 0; %whether jacobian ready for first iteration 
 fprintf('Have jacobian ready: %d\n', have_jacobian_ready);
 fprintf('Have jacobian for first iteration: %d\n', have_jacobian_iready);
 lambda_1st = 10000;
@@ -126,6 +126,7 @@ if ~isequal(z_truth, z_sonde) || ~isequal(z_truth, z_prior)
     fprintf('z_prior 1: %s\n', mat2str(z_prior(1)));
 end
 
+
 if ~is_q_log % enters if q is not log scale
     q_prior = log(q_prior);
     q_truth = log(q_truth);
@@ -193,6 +194,7 @@ profile_input.z = z_truth; % km
 profile_input.p = p; % hPa
 ts = 0; % space temperature
 
+
 %% Retrieval
 lambda = lambda_1st; %for Levenberg-Marquardt regularization
 lambda_output = NaN(1, 20); 
@@ -217,7 +219,6 @@ for i = 1:20
     % Reassign profile_input for q and T
     profile_input.t = tx; % K
     profile_input.q = qx; % g/kg (not log anymore)
-   
 
     if have_jacobian_ready
         if i==1
@@ -294,7 +295,7 @@ for i = 1:20
     if i==1
         F = run_single_simulation(path_modtran, path_tape5, ...
                     profile_input, modroot, resolution, fwhm, cloud, ...
-                    v1, v2, angle, iLoc, emis, profile.z(end), ts);
+                    v1, v2, angle, iLoc, emis, profile.z(end), ts, true);
         F = F.rad_plt .* 1e7; % convert to RU
 
         if any(isnan(F)) || any(F < 0)
@@ -305,7 +306,7 @@ for i = 1:20
                 fprintf('Corresponding wavenumbers: %s\n', mat2str(sim_wnum(negative_indices )));
                 fprintf('Corresponding F values: %s\n', mat2str(F(negative_indices )));
                 disp('Adjusting negative values to zero...');
-                F(negative_indices) = 0; % Adjust negative values to zero
+                F(negative_indices) = eps; % Adjust negative values to very small values
             end
         end
 
@@ -314,8 +315,8 @@ for i = 1:20
     end
     toc
 
-    cleanup_modtran_files(path_modtran, modroot); disp('Trying to clean up in current directory as well...');
-    current_path = pwd; current_path = strcat(current_path, '/');cleanup_modtran_files(current_path, modroot);
+    % cleanup_modtran_files(path_modtran, modroot); disp('Trying to clean up in current directory as well...');
+    % current_path = pwd; current_path = strcat(current_path, '/');cleanup_modtran_files(current_path, modroot);
 
 
     if i == 1
@@ -330,7 +331,7 @@ for i = 1:20
             fprintf('Corresponding wavenumbers: %s\n', mat2str(AERI_wnum_adj(negative_indices )));
             fprintf('Corresponding F values: %s\n', mat2str(F(negative_indices )));
             disp('Adjusting negative values to zero...');
-            F(negative_indices) = 0; % Adjust negative values to zero
+            F(negative_indices) = eps; % Adjust negative values to zero
         end
     end
 
@@ -378,7 +379,7 @@ for i = 1:20
             tic
             F_new = run_single_simulation(path_modtran, path_tape5, ...
             profile_input, modroot, resolution, fwhm, cloud, ...
-            v1, v2, angle, iLoc, emis, profile.z(end), ts);
+            v1, v2, angle, iLoc, emis, profile.z(end), ts, true);
             F_new = F_new.rad_plt .* 1e7;
             toc
             F_new = band_conv_brb(sim_wnum, F_new, AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
@@ -391,7 +392,7 @@ for i = 1:20
                     fprintf('Corresponding wavenumbers: %s\n', mat2str(AERI_wnum_adj(negative_indices )));
                     fprintf('Corresponding F values: %s\n', mat2str(F_new(negative_indices )));
                     disp('Adjusting negative values to zero...');
-                    F_new(negative_indices) = 0; % Adjust negative values to zero
+                    F_new(negative_indices) = eps; % Adjust negative values to small values
                 end
             end
             
@@ -400,12 +401,12 @@ for i = 1:20
             fprintf('Forward simulation done for iteration %d.\n', i+1);
 
             
-            disp('Trying to clean up in current directory...');
-            cleanup_modtran_files(path_modtran, modroot);
-            disp('Trying to clean up in current directory as well...');
-            current_path = pwd;
-            current_path = strcat(current_path, '/');
-            cleanup_modtran_files(current_path, modroot);
+            % disp('Trying to clean up in current directory...');
+            % cleanup_modtran_files(path_modtran, modroot);
+            % disp('Trying to clean up in current directory as well...');
+            % current_path = pwd;
+            % current_path = strcat(current_path, '/');
+            % cleanup_modtran_files(current_path, modroot);
         
            
 	    end
@@ -513,8 +514,7 @@ retrieval_results.F_output = F_output(:, 1:i); % Forward simulations
 retrieval_results.z = z_truth; % km, height levels
 retrieval_results.tfinal =  x(1:38, 1:i+1);
 retrieval_results.qfinal =  x(39:end, 1:i+1);
-retrieval_results.DFS_T = DFS_T;
-retrieval_results.DFS_Q = DFS_Q;
+
 if strcmp(variablename, 'both')
     retrieval_results.tx_retrieved = x(1:nlev, i+1);
     retrieval_results.qx_retrieved = exp(x(nlev+1:end, i+1)); % g/kg
