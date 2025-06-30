@@ -275,6 +275,7 @@ for i = 1:20
         [~, F] = lblrtm_aeri_clearsky(v1,v2,profile_input.z,profile_input.p,profile_input.t,profile_input.t(1),profile_input.q,profile_input.co2,...
             profile_input.o3,n2o,co,profile_input.ch4,ccl4,f11,f12,zenith,atmos_id,altitude_toa);
         toc
+        F = F_new;
     else
         F = F_new; % use the previous forward simulation result, which is the same
     end
@@ -282,10 +283,10 @@ for i = 1:20
     [~,index_aj_begin] = find(abs(wv_aj - wv_begin) == min(abs(wv_aj - wv_begin)));
     [~,index_aj_end] = find(abs(wv_aj - wv_end) == min(abs(wv_aj - wv_end)));
 
-    if( (index_aj_end-index_aj_begin+1)~=(index_aeri_end-index_aeri_begin+1) ...
-        | abs(nanmean(wv_aj(index_aj_begin:index_aj_end) - AERI_wnum_adj(index_aeri_begin:index_aeri_end)')) > 0.01 )
-        disp('aj wv not consistent');
-        return;
+    wv_aj_sub = wv_aj(index_aj_begin:index_aj_end);
+    if length(wv_aj_sub) ~= length(AERI_wnum_adj) || ...
+        abs(nanmean(wv_aj_sub - AERI_wnum_adj')) > 0.01
+        error('aj wv not consistent');
     end
 
 
@@ -304,7 +305,6 @@ for i = 1:20
     J(i) = (measurement - F)'*inv(Se)*(measurement - F) + (x(:,i) - xa)'*inv(Sa)*(x(:,i) - xa);
 
     J(i+1) = J(i)+1;
-
     while J(i+1)>J(i)
         % disp(['Iteration ', num2str(i)]);
         % disp(['Size of K: ', mat2str(size(K))]);
