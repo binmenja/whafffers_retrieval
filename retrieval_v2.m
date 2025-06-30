@@ -3,7 +3,7 @@ close all; clear all; clc;
 addpath('/home/binmenja/direct/matlab/mylib')
 addpath('/home/binmenja/direct/models/modtran6/bin/linux')
 addpath('/home/binmenja/direct/models/modtran6/bin/linux/matlib_modtran')
-
+addpath('/home/binmenja/direct/models/LBLRTM/scripts_brb')
 utc_profile = '202502120753'; % UTC time of the radiosonde launch
 if ~exist(utc_profile,'dir')
     system(strcat("mkdir -p ", utc_profile));
@@ -232,6 +232,7 @@ for i = 1:20
                 K_t(:,il) = band_conv_brb(sim_wnum, K_t_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
                 K_q(:,il) = band_conv_brb(sim_wnum, K_q_ori(:,il), AERI_wnum_adj, AERI_fwhm, AERI_MOPD, 'Sinc');
             end
+            
         elseif i==2
             load(strcat('./',utc_profile,'/K_t_era5_x1.mat')) % Unit is W/(cm^2*sr*cm^{-1})/K
             K_t_ori = jacobian_info.jacobian .* 1e7; % convert the unit to RU/K
@@ -309,14 +310,14 @@ for i = 1:20
                 F(negative_indices) = eps; % Adjust negative values to very small values
             end
         end
-
+        F = F_new;
     else
         F = F_new; % use the previous forward simulation result, which is the same
     end
     toc
 
-    % cleanup_modtran_files(path_modtran, modroot); disp('Trying to clean up in current directory as well...');
-    % current_path = pwd; current_path = strcat(current_path, '/');cleanup_modtran_files(current_path, modroot);
+    cleanup_modtran_files(path_modtran, modroot); disp('Trying to clean up in current directory as well...');
+    current_path = pwd; current_path = strcat(current_path, '/');cleanup_modtran_files(current_path, modroot);
 
 
     if i == 1
@@ -401,12 +402,12 @@ for i = 1:20
             fprintf('Forward simulation done for iteration %d.\n', i+1);
 
             
-            % disp('Trying to clean up in current directory...');
-            % cleanup_modtran_files(path_modtran, modroot);
-            % disp('Trying to clean up in current directory as well...');
-            % current_path = pwd;
-            % current_path = strcat(current_path, '/');
-            % cleanup_modtran_files(current_path, modroot);
+            disp('Trying to clean up in current directory...');
+            cleanup_modtran_files(path_modtran, modroot);
+            disp('Trying to clean up in current directory as well...');
+            current_path = pwd;
+            current_path = strcat(current_path, '/');
+            cleanup_modtran_files(current_path, modroot);
         
            
 	    end
