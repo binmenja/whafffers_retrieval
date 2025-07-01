@@ -204,7 +204,7 @@ for i = 1:20
 
     tic
      disp(['ITERATION: ', num2str(i)]);
-    
+     lambda_output(i) = lambda;
     if strcmp(variablename, 'T')
         qx = exp(q_truth); % This one is kept if q is not retrieved
         tx = x(:,i);
@@ -310,7 +310,7 @@ for i = 1:20
                 F(negative_indices) = eps; % Adjust negative values to very small values
             end
         end
-        F = F_new;
+        F_new = F;
     else
         F = F_new; % use the previous forward simulation result, which is the same
     end

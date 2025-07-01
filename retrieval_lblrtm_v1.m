@@ -207,7 +207,7 @@ for i = 1:20
 
     tic
      disp(['ITERATION: ', num2str(i)]);
-    
+     lambda_output(i) = lambda;
     if strcmp(variablename, 'T')
         qx = exp(q_truth); % This one is kept if q is not retrieved
         tx = x(:,i);
@@ -275,7 +275,7 @@ for i = 1:20
         [~, F] = lblrtm_aeri_clearsky(v1,v2,profile_input.z,profile_input.p,profile_input.t,profile_input.t(1),profile_input.q,profile_input.co2,...
             profile_input.o3,n2o,co,profile_input.ch4,ccl4,f11,f12,zenith,atmos_id,altitude_toa);
         toc
-        F = F_new;
+        F_new = F;
     else
         F = F_new; % use the previous forward simulation result, which is the same
     end
