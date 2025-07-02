@@ -44,7 +44,7 @@ AERI_cal_error_full = ncread(aeri_file, 'RADIANCE.SKY_ERROR');
 AERI_nesr_full = ncread(aeri_file, 'RADIANCE.SKY_NOISE'); % [RU]
 AERI_rad_full = ncread(aeri_file, 'RADIANCE.SKY_CLEANED'); % [RU]
 AERI_wnum = ncread(aeri_file, 'WAVENUMBER'); %[cm-1]
-AERI_dates_full = ncread(aeri_file, 'DATETIME'); % Format is YYYYMMDDThhmmssZ
+AERI_dates_full = ncread(aeri_file, 'DATETIME'); % Format is YYYYMMDDThhmmssZ`
 AERI_dates_full = string(AERI_dates_full.');
 years = double(extractBetween(AERI_dates_full, 1, 4));
 months = double(extractBetween(AERI_dates_full, 5, 6));
@@ -297,9 +297,11 @@ for i = 1:20
     else 
         K = K_q(index_aj_begin:index_aj_end,:); % dimension: (nwv,nlev)
     end
-
-    F = (F(index_aj_begin:index_aj_end))' .* 1e7; % convert radiance unit to RU
-
+    if i == 1
+        F = (F(index_aj_begin:index_aj_end))' .* 1e7; % convert radiance unit to RU
+    else
+        disp('Using previous forward simulation result for F, which was already converted to RU and adjusted to wv res.');
+    end
     F_output(:,i) = F;
 
     J(i) = (measurement - F)'*inv(Se)*(measurement - F) + (x(:,i) - xa)'*inv(Sa)*(x(:,i) - xa);
@@ -342,14 +344,6 @@ for i = 1:20
 
             fprintf('Forward simulation done for iteration %d.\n', i+1);
 
-            
-            disp('Trying to clean up in current directory...');
-            cleanup_modtran_files(path_modtran, modroot);
-            disp('Trying to clean up in current directory as well...');
-            current_path = pwd;
-            current_path = strcat(current_path, '/');
-            cleanup_modtran_files(current_path, modroot);
-        
            
 	    end
         if isnan(J(i+1))
