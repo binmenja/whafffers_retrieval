@@ -1,11 +1,10 @@
 # Derivation of the Optimal Estimation Method (OEM) for Atmospheric Retrieval
 
-**Author**: Benjamin Riot-Bretecher (based on code by Lei Liu)  
-**Date**: June 13, 2025
+**Author**: Benjamin Riot-Bretecher (based on initial code by Lei Liu)  
 
 ## Abstract
 
-This document provides a detailed derivation of the Optimal Estimation Method (OEM), a widely used statistical approach for retrieving atmospheric state parameters from remote sensing measurements. The method, based on Bayes' theorem, combines prior knowledge of the atmospheric state with observed measurements to obtain an optimal estimate of the true state. The derivation covers the cost function, the iterative solution (specifically the Levenberg-Marquardt approach), and the characterization of the retrieval through the averaging kernel and posterior covariance.
+This document provides a detailed derivation of the Optimal Estimation Method (OEM), a widely used statistical approach for retrieving atmospheric state parameters from remote sensing measurements. The method, based on Bayes' theorem, combines prior knowledge of the atmospheric state with observed measurements to obtain an optimal estimate of the true state. The derivation covers the cost function, the iterative solution (specifically the Levenberg-Marquardt approach), and the characterization of the retrieval through the averaging kernel and posterior covariance. In this repo, two forward model algorithms are used: MODTRAN6.0.2R2 and LBLRTM v12.17 with MT_CKD 4.3 and Line File v3.8.1.
 
 ## Introduction
 
@@ -122,12 +121,6 @@ $$
 \mathbf{S}_{pos} = (\lambda \mathbf{S}_a^{-1} + \mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1})^{-1} (\lambda^2 \mathbf{S}_a^{-1} + \mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1}) (\lambda \mathbf{S}_a^{-1} + \mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1})^{-1}
 $$
 
-This matches the MATLAB code:
-
-```matlab
-inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K)*((lambda_output(i)+1).^2*inv(Sa)+K'*inv(Se)*K)*inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K);
-```
-
 ### Averaging Kernel Matrix
 
 The averaging kernel matrix $\mathbf{A}$ relates the retrieval $\hat{\mathbf{x}}$ to the true state $\mathbf{x}_{t}$:
@@ -148,11 +141,7 @@ $$
 \mathbf{A} = \mathbf{G K}, \quad \mathbf{G} = (\mathbf{K}^T \mathbf{S}_e^{-1} \mathbf{K} + \mathbf{S}_a^{-1})^{-1} \mathbf{K}^T \mathbf{S}_e^{-1}
 $$
 
-This matches the MATLAB code:
 
-```matlab
-A = gather(inv(K'*inv(Se)*K+(lambda_output(i)+1).*inv(Sa)))*gather(K'*inv(Se)*K);
-```
 
 ### Degrees of Freedom for Signal (DFS)
 
