@@ -527,6 +527,7 @@ function [] = run_multiple_lblrtm_retrievals(datestring)
     output_filename = sprintf('./%s/retrieval_results_lblrtm_%s_%s.mat', utc_profile, variablename, timestamp);
     save(output_filename, 'retrieval_results', '-v7.3');
     disp(['Saved retrieval results to: ', output_filename]);
-
+    addpath('/home/binmenja/direct/field_campaigns/whafffers/retrievals')
+    plot_retrieval_results(output_filename)
 
 end
