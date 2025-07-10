@@ -11,7 +11,7 @@ function [] = run_multiple_lblrtm_retrievals(datestring)
 
     
     % Retrieval settings
-    have_jacobian_ready = 0; % whether the jacobian is already ready
+    have_jacobian_ready = 1; % whether the jacobian is already ready
     fprintf('Have jacobian ready: %d\n', have_jacobian_ready);
     lambda_1st = 10000;
     is_q_log = 0; % whether q is already in log scale; 0: no, 1: yes
@@ -30,10 +30,6 @@ function [] = run_multiple_lblrtm_retrievals(datestring)
     fwhm = resolution * 2;
     zenith = 0;
     atmos_id = '5';
-    path_tape5 = ['/home/binmenja/direct/field_campaigns/whafffers/tape5/', utc_profile, '/'];
-    if ~exist(path_tape5, 'dir')
-        system(["mkdir -p ", path_tape5]);
-    end
     angle = 180; emis = 0; iLoc = '0'; ts = 0;
     
     %% === Automatically find corresponding radiosonde and AERI files ===
@@ -127,7 +123,7 @@ function [] = run_multiple_lblrtm_retrievals(datestring)
 
 
 
-    output_dir = fullfile('output_retrievals_lblrtm', utc_profile);
+    output_dir = fullfile('output_retrievals_lblrtm/38levels', utc_profile);
     if ~exist(output_dir, 'dir'); mkdir(output_dir); end
     cd(output_dir);
 
@@ -155,7 +151,12 @@ function [] = run_multiple_lblrtm_retrievals(datestring)
     nlev = length(z_truth);
 
     % read truth
-    load('/home/binmenja/direct/field_campaigns/whafffers/profile_202502120753UTC.mat'); % Already patched with ERA5 data
+    profile_file = fullfile('/home/binmenja/direct/field_campaigns/whafffers/200levels/', ...
+        ['profile_' datestring 'UTC.mat']);
+    if ~exist(profile_file, 'file')
+    error('Profile file not found: %s', profile_file);
+    end
+    load(profile_file);    
     z_sonde = profile.z(:) + z_truth(1); % km; adjust to same base height!
     p_sonde = profile.p(:); % hPa
     t_sonde = profile.t(:); % K
@@ -438,6 +439,7 @@ function [] = run_multiple_lblrtm_retrievals(datestring)
 
 
         % Fair version, lambda = 0
+        G = (K' * inv(Se) * K + inv(Sa)) \ (K' * inv(Se));
         Spos_CR = inv(K'*inv(Se)*K+inv(Sa));
         Spos_output_CR(:,:,i) = Spos_CR;
         A_CR = Spos_CR * K' * inv(Se) * K;
@@ -502,6 +504,7 @@ function [] = run_multiple_lblrtm_retrievals(datestring)
     retrieval_results.DFS_per_height_CR = DFS_per_height_CR(:,1:i); % DFS per height (lambda = 0 version)
     retrieval_results.DFS_T = DFS_T_output_CR(1:i); % DFS for T
     retrieval_results.DFS_Q = DFS_Q_output_CR(1:i); % DFS for q
+    retrieval_results.G = G;                   % Gain matrix
     retrieval_results.J = J(1:i+1);            % Cost function history
     retrieval_results.d = d(1:i);              % State vector convergence history
     retrieval_results.d_threshold = d_threshold; % Threshold for convergence
@@ -524,7 +527,12 @@ function [] = run_multiple_lblrtm_retrievals(datestring)
     retrieval_results.measurement = measurement; % RU
 
     timestamp = datestr(now,'yyyymmdd_HHMMSS');
-    output_filename = sprintf('./%s/retrieval_results_lblrtm_%s_%s.mat', utc_profile, variablename, timestamp);
+    disp('Current directory:');
+    disp(pwd);
+    disp('Saving retrieval results...');
+    disp(['Output directory: ', output_dir]);
+    disp(['Output filename: retrieval_results_lblrtm_', variablename, '_', timestamp, '.mat']);
+    output_filename = sprintf('retrieval_results_lblrtm_%s_%s.mat', variablename, timestamp);    
     save(output_filename, 'retrieval_results', '-v7.3');
     disp(['Saved retrieval results to: ', output_filename]);
     addpath('/home/binmenja/direct/field_campaigns/whafffers/retrievals')

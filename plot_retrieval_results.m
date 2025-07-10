@@ -2,6 +2,10 @@ function [] = plot_retrieval_results(filename)
 
     load(filename)
 
+    [~, base, ~] = fileparts(filename);
+    outdir = fullfile('figures_png', base);
+    if ~exist(outdir, 'dir'); mkdir(outdir); end
+
     fnt = 'Montserrat'; fs = 40;
     nlev = length(retrieval_results.z); % Number of vertical levels
 
@@ -14,7 +18,10 @@ function [] = plot_retrieval_results(filename)
         fprintf('Computed Gnew (Rodgers-style Gain matrix).\n');
     end
 
-    % Temperature Retrieval 
+    % Helper for saving
+    savefigpng = @(name) saveas(gcf, fullfile(outdir, [name, '_',retrieval_results.utc_profile,'.png']));
+
+    % === Temperature Retrieval ===
     if isfield(retrieval_results, 'tx_retrieved')
         figure('Color','w', 'Position', [100, 100, 1440, 1440]);
         plot(retrieval_results.tx_retrieved, retrieval_results.z, 'r-', 'LineWidth', 3); hold on;
@@ -23,9 +30,10 @@ function [] = plot_retrieval_results(filename)
         legend('Retrieved T', 'Truth T', 'Prior T', 'FontSize', fs, 'FontName', fnt, 'Location','best');
         xlabel('Temperature [K]'); ylabel('Height [km]');
         title('Temperature Retrieval'); set(gca, 'FontSize', fs, 'FontName', fnt);
+        savefigpng('temperature_retrieval');
     end
 
-    % Water Vapor Retrieval
+    % === Water Vapor Retrieval ===
     if isfield(retrieval_results, 'qx_retrieved')
         figure('Color','w', 'Position', [100, 100, 1440, 1440]);
         qx = retrieval_results.qx_retrieved;
@@ -35,37 +43,42 @@ function [] = plot_retrieval_results(filename)
         plot(q_truth, retrieval_results.z, 'k--', 'LineWidth', 2);
         plot(q_prior, retrieval_results.z, 'b:', 'LineWidth', 2);
         legend('Retrieved q', 'Truth q', 'Prior q', 'FontSize', fs, 'FontName', fnt, 'Location','best');
-        xlabel('Specific Humidity [g/kg]'); ylabel('Height [km]');
+        xlabel('Specific Humidity [ppmv]'); ylabel('Height [km]');
         title('Water Vapor Retrieval'); set(gca, 'FontSize', fs, 'FontName', fnt);
+        savefigpng('wv_retrieval');
     end
 
-    % Temperature Difference 
+    % === Temperature Differences ===
     figure('Color','w', 'Position', [100, 100, 1440, 1440]);
     plot(retrieval_results.tx_retrieved - retrieval_results.xtrue(1:nlev), retrieval_results.z, 'r-', 'LineWidth', 3); hold on;
     plot(retrieval_results.xa(1:nlev) - retrieval_results.xtrue(1:nlev), retrieval_results.z, 'b--', 'LineWidth', 3);
     legend('Retrieved - Truth', 'Prior - Truth', 'FontSize', fs, 'FontName', fnt);
     xlabel('T [K]'); ylabel('Height [km]');
     title('Temperature Differences'); set(gca, 'FontSize', fs, 'FontName', fnt);
+    savefigpng('temperature_diff');
 
-    % Water Vapor Difference 
+    % === Water Vapor Differences ===
     figure('Color','w', 'Position', [100, 100, 1440, 1440]);
     plot(qx - q_truth, retrieval_results.z, 'r-', 'LineWidth', 3); hold on;
     plot(q_prior - q_truth, retrieval_results.z, 'b--', 'LineWidth', 3);
     legend('Retrieved - Truth', 'Prior - Truth', 'FontSize', fs, 'FontName', fnt);
-    xlabel('q [g/kg]'); ylabel('Height [km]');
+    xlabel('q [ppmv]'); ylabel('Height [km]');
     title('Water Vapor Differences'); set(gca, 'FontSize', fs, 'FontName', fnt);
+    savefigpng('wv_diff');
 
     % === Residuals ===
     figure('Color','w', 'Position', [100, 100, 1440, 1440]);
     imagesc(retrieval_results.AERI_wnum,1:size(retrieval_results.drad,1),retrieval_results.drad);
     xlabel('Wavenumber [$cm^{-1}$]','Interpreter','latex'); ylabel('Iteration');
     title('Residuals: Meas - Sim [RU]'); set(gca, 'FontSize', fs, 'FontName', fnt);
+    savefigpng('residuals');
 
-    % === Cost Function J ===
+    % === Cost Function ===
     figure('Color','w', 'Position', [100, 100, 1440, 1440]);
     plot(1:length(retrieval_results.J), retrieval_results.J, '-o', 'LineWidth', 3);
     xlabel('Iteration'); ylabel('Cost Function J');
     title('OEM Cost Function'); set(gca, 'FontSize', fs, 'FontName', fnt);
+    savefigpng('cost_function');
 
     % === DFS Breakdown ===
     figure('Color','w', 'Position', [100, 100, 1440, 1440]);
@@ -75,14 +88,16 @@ function [] = plot_retrieval_results(filename)
     legend('Total DFS', 'DFS for T', 'DFS for q', 'FontSize', fs, 'FontName', fnt);
     xlabel('Iteration'); ylabel('DFS');
     title('Degrees of Freedom for Signal'); set(gca, 'FontSize', fs, 'FontName', fnt);
+    savefigpng('dfs_breakdown');
 
     % === DFS per Layer ===
     figure('Color','w', 'Position', [100, 100, 1440, 1440]);
     barh(retrieval_results.DFS_per_height_CR(:,end));
     xlabel('DFS per layer'); ylabel('Layer index');
     title('DFS per Layer (Final Iteration)'); set(gca, 'FontSize', fs, 'FontName', fnt);
+    savefigpng('dfs_per_layer');
 
-    % === Averaging Kernel Diagonal ===
+    % === Averaging Kernel ===
     if isfield(retrieval_results, 'Gnew')
         A = retrieval_results.Gnew * retrieval_results.K;
         AK_diag_T = diag(A(1:nlev,1:nlev));
@@ -93,6 +108,7 @@ function [] = plot_retrieval_results(filename)
         xlabel('AK Diagonal'); ylabel('Height [km]');
         title('Averaging Kernel Diagonal'); legend('T', 'q');
         set(gca, 'FontSize', fs, 'FontName', fnt);
+        savefigpng('ak_diag');
     end
 
     % === Jacobian Norms ===
@@ -105,6 +121,7 @@ function [] = plot_retrieval_results(filename)
         xlabel('Jacobian Norm [RU/K or RU/log(q)]'); ylabel('Height [km]');
         legend('|K_t|', '|K_q|'); title('Jacobian Norms');
         set(gca, 'FontSize', fs, 'FontName', fnt);
+        savefigpng('jacobian_norms');
     end
 
     % === Final chi² ===
@@ -122,13 +139,14 @@ function [] = plot_retrieval_results(filename)
         xlabel('Index'); ylabel('Singular value');
         title('Singular Values of Jacobian');
         set(gca, 'FontSize', fs, 'FontName', fnt);
+        savefigpng('svd');
 
-        % Cumulative variance
         figure('Color','w', 'Position', [100, 100, 1440, 1440]);
         cumvar = cumsum(svals.^2) / sum(svals.^2);
         plot(cumvar, 'k-', 'LineWidth', 3); grid on;
         xlabel('Index'); ylabel('Cumulative variance explained');
         title('Cumulative Information Content of K');
         set(gca, 'FontSize', fs, 'FontName', fnt);
+        savefigpng('svd_cumulative');
     end
 end

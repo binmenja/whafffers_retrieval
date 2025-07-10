@@ -63,8 +63,8 @@ end
 AERI_dates_full = datetime(years, months, days, hour_aeri', minute_aeri', second_aeri', 'TimeZone', 'UTC');
 time_diff_duration = AERI_dates_full - ref_date_launch; 
 time_diff = minutes(time_diff_duration); 
-start_idx = find(time_diff >= -1, 1, 'first'); % start (~ 1 minute before launch)
-end_idx = find(time_diff <= 10, 1, 'last');    % end (10 minutes after launch)
+start_idx = find(time_diff >= -2, 1, 'first'); 
+end_idx = find(time_diff <= 8, 1, 'last');    
 if isempty(start_idx), start_idx = 1; end
 if isempty(end_idx), end_idx = length(AERI_dates_full); end
 AERI_rad = AERI_rad_full(:, start_idx:end_idx);
@@ -433,6 +433,7 @@ for i = 1:20
     end
 
     % Lambda method, lambda not zero
+    G = (K' * inv(Se) * K + inv(Sa)) \ (K' * inv(Se));
     Spos = inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K)*((lambda_output(i)+1).^2*inv(Sa)+K'*inv(Se)*K)*inv((lambda_output(i)+1)*inv(Sa)+K'*inv(Se)*K);
     Spos_output(:,:,i) = Spos;
     A = inv(K'*inv(Se)*K+(lambda_output(i)+1).*inv(Sa))*K'*inv(Se)*K; 
@@ -496,6 +497,7 @@ retrieval_results.K = K;                   % Jacobian matrix
 retrieval_results.K_t = K_t;               % Jacobian for T
 retrieval_results.K_q = K_q;               % Jacobian for q
 retrieval_results.Se = Se;                 % Measurement error covariance
+retrieval_results.G = G; % Gain matrix
 retrieval_results.Spos = Spos_output(:,:,i);   % Posterior covariance (classic)
 retrieval_results.Spos_CR = Spos_output_CR(:,:,i); % Posterior covariance (Rodgers full form)
 retrieval_results.A = A_output(:,:,i);     % Averaging kernel (classic)
