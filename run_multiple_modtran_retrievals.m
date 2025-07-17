@@ -279,10 +279,11 @@ function [] = run_multiple_modtran_retrievals(datestring,n_recalc_jacob)
         profile_input.t = tx; % K
         profile_input.q = qx; % g/kg (not log anymore)
         pwd
-        jacobian_dir = fullfile('.', datestring);
+        jacobian_folder = 'jacobians';
+        jacobian_dir = fullfile('.', jacobian_folder);
         if ~exist(jacobian_dir, 'dir')
             mkdir(jacobian_dir);
-            fprintf('Created directory: %s\n', fullfile(pwd, datestring));
+            fprintf('Created directory: %s\n', fullfile(pwd, jacobian_folder));
         end
 
         jacobian_suffix = sprintf('x%d', i-1); % x0 for i=1, x1 for i=2, etc.
@@ -290,6 +291,9 @@ function [] = run_multiple_modtran_retrievals(datestring,n_recalc_jacob)
         jacobian_path_q = fullfile('./', datestring, ['K_q_era5_', jacobian_suffix, '.mat']);
 
         if have_jacobian_ready
+            prev_suffix = sprintf('x%d', n_recalc_jacob-1);  % Always reuse latest jacobian
+            jacobian_path_t = fullfile('./', datestring, ['K_t_era5_', prev_suffix, '.mat']);
+            jacobian_path_q = fullfile('./', datestring, ['K_q_era5_', prev_suffix, '.mat']);
             if exist(jacobian_path_t, 'file') && exist(jacobian_path_q, 'file')
                 load(jacobian_path_t); 
                 K_t_ori = jacobian_info.jacobian .* 1e7;
@@ -322,14 +326,6 @@ function [] = run_multiple_modtran_retrievals(datestring,n_recalc_jacob)
             if i == n_recalc_jacob
                 have_jacobian_ready = 1;
             end
-        else
-            % After n_recalc_jacob, reuse last available Jacobian (from x{n-1})
-            prev_suffix = sprintf('x%d', n_recalc_jacob - 1);
-            load(fullfile('./', datestring, ['K_t_era5_', prev_suffix, '.mat']));
-            K_t_ori = jacobian_info.jacobian .* 1e7;
-            load(fullfile('./', datestring, ['K_q_era5_', prev_suffix, '.mat']));
-            K_q_ori = jacobian_info.jacobian .* 1e7;
-            sim_wnum = jacobian_info.wavenumbers;
         end
 
         % Convolve to AERI resolution

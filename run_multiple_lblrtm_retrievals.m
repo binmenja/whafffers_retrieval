@@ -281,13 +281,18 @@ function [] = run_multiple_lblrtm_retrievals(datestring,n_recalc_jacob)
         jacobian_path_wv = fullfile(['wv_aj_era5_', jacobian_suffix, '.mat']);
 
         if have_jacobian_ready
+            disp(['Reusing Jacobians from iteration ', num2str(n_recalc_jacob), ' → file suffix: x', num2str(n_recalc_jacob - 1)]);
+            prev_suffix = sprintf('x%d', n_recalc_jacob - 1);
+            jacobian_path_t = fullfile('./', datestring, ['K_t_era5_', prev_suffix, '.mat']);
+            jacobian_path_q = fullfile('./', datestring, ['K_q_era5_', prev_suffix, '.mat']);
             if exist(jacobian_path_t, 'file') && exist(jacobian_path_q, 'file') && exist(jacobian_path_wv, 'file')
-                K_t = importdata(jacobian_path_t);  
-                K_q = importdata(jacobian_path_q);  
-                wv_aj = importdata(jacobian_path_wv);
+                K_t = importdata(fullfile('./', datestring, ['K_t_era5_', prev_suffix, '.mat']));
+                K_q = importdata(fullfile('./', datestring, ['K_q_era5_', prev_suffix, '.mat']));
+                wv_aj = importdata(fullfile('./', datestring, ['wv_aj_era5_', prev_suffix, '.mat']));
             else
-                error('Jacobian files not found for iteration %d. Expected: %s and %s', ...
+                error('Jacobian files not found for iteration %d. Expected: %s, %s, and wv.', ...
                     i, jacobian_path_t, jacobian_path_q);
+
             end
         elseif i <= n_recalc_jacob
             if i > 1
@@ -325,11 +330,6 @@ function [] = run_multiple_lblrtm_retrievals(datestring,n_recalc_jacob)
             if i == n_recalc_jacob
                 have_jacobian_ready = 1;
             end
-        else
-            prev_suffix = sprintf('x%d', n_recalc_jacob - 1);
-            K_t = importdata(fullfile('./', datestring, ['K_t_era5_', prev_suffix, '.mat']));
-            K_q = importdata(fullfile('./', datestring, ['K_q_era5_', prev_suffix, '.mat']));
-            wv_aj = importdata(fullfile('./', datestring, ['wv_aj_era5_', prev_suffix, '.mat']));
         end
 
         % FORWARD SIMULATION
