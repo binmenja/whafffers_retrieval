@@ -278,22 +278,17 @@ function [] = run_multiple_modtran_retrievals(datestring,n_recalc_jacob)
         % Reassign profile_input for q and T
         profile_input.t = tx; % K
         profile_input.q = qx; % g/kg (not log anymore)
-        pwd
-        jacobian_folder = 'jacobians';
-        jacobian_dir = fullfile('.', jacobian_folder);
-        if ~exist(jacobian_dir, 'dir')
-            mkdir(jacobian_dir);
-            fprintf('Created directory: %s\n', fullfile(pwd, jacobian_folder));
-        end
+        disp('Current directory:');
+        disp(pwd);
 
         jacobian_suffix = sprintf('x%d', i-1); % x0 for i=1, x1 for i=2, etc.
-        jacobian_path_t = fullfile('./', datestring, ['K_t_era5_', jacobian_suffix, '.mat']); 
-        jacobian_path_q = fullfile('./', datestring, ['K_q_era5_', jacobian_suffix, '.mat']);
+        jacobian_path_t = fullfile(['./K_t_era5_', jacobian_suffix, '.mat']); 
+        jacobian_path_q = fullfile(['./K_q_era5_', jacobian_suffix, '.mat']);
 
         if have_jacobian_ready
             prev_suffix = sprintf('x%d', n_recalc_jacob-1);  % Always reuse latest jacobian
-            jacobian_path_t = fullfile('./', datestring, ['K_t_era5_', prev_suffix, '.mat']);
-            jacobian_path_q = fullfile('./', datestring, ['K_q_era5_', prev_suffix, '.mat']);
+            jacobian_path_t = fullfile(['./K_t_era5_', prev_suffix, '.mat']);
+            jacobian_path_q = fullfile(['./K_q_era5_', prev_suffix, '.mat']);
             if exist(jacobian_path_t, 'file') && exist(jacobian_path_q, 'file')
                 load(jacobian_path_t); 
                 K_t_ori = jacobian_info.jacobian .* 1e7;

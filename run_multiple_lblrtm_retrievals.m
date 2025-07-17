@@ -10,7 +10,7 @@ function [] = run_multiple_lblrtm_retrievals(datestring,n_recalc_jacob)
     end
         
     % Retrieval settings
-    have_jacobian_ready = 0; % whether the jacobian is already ready
+    have_jacobian_ready = 1; % whether the jacobian is already ready
     fprintf('Have jacobian ready: %d\n', have_jacobian_ready);
     lambda_1st = 10000;
     is_q_log = 0; % whether q is already in log scale; 0: no, 1: yes
@@ -274,7 +274,8 @@ function [] = run_multiple_lblrtm_retrievals(datestring,n_recalc_jacob)
         % Reassign profile_input for q and T
         profile_input.t = tx; % K
         profile_input.q = qx; % g/kg (not log anymore)
-
+        disp('Current dir:')
+        disp(pwd);
         jacobian_suffix = sprintf('x%d', i-1);  % e.g., x0, x1, etc.
         jacobian_path_t = fullfile(['K_t_era5_', jacobian_suffix, '.mat']);
         jacobian_path_q = fullfile(['K_q_era5_', jacobian_suffix, '.mat']);        
@@ -283,12 +284,12 @@ function [] = run_multiple_lblrtm_retrievals(datestring,n_recalc_jacob)
         if have_jacobian_ready
             disp(['Reusing Jacobians from iteration ', num2str(n_recalc_jacob), ' → file suffix: x', num2str(n_recalc_jacob - 1)]);
             prev_suffix = sprintf('x%d', n_recalc_jacob - 1);
-            jacobian_path_t = fullfile('./', datestring, ['K_t_era5_', prev_suffix, '.mat']);
-            jacobian_path_q = fullfile('./', datestring, ['K_q_era5_', prev_suffix, '.mat']);
+            jacobian_path_t = fullfile(['./K_t_era5_', prev_suffix, '.mat']);
+            jacobian_path_q = fullfile(['./K_q_era5_', prev_suffix, '.mat']);
             if exist(jacobian_path_t, 'file') && exist(jacobian_path_q, 'file') && exist(jacobian_path_wv, 'file')
-                K_t = importdata(fullfile('./', datestring, ['K_t_era5_', prev_suffix, '.mat']));
-                K_q = importdata(fullfile('./', datestring, ['K_q_era5_', prev_suffix, '.mat']));
-                wv_aj = importdata(fullfile('./', datestring, ['wv_aj_era5_', prev_suffix, '.mat']));
+                K_t = importdata(fullfile(['./K_t_era5_', prev_suffix, '.mat']));
+                K_q = importdata(fullfile(['./K_q_era5_', prev_suffix, '.mat']));
+                wv_aj = importdata(fullfile(['./wv_aj_era5_', prev_suffix, '.mat']));
             else
                 error('Jacobian files not found for iteration %d. Expected: %s, %s, and wv.', ...
                     i, jacobian_path_t, jacobian_path_q);
